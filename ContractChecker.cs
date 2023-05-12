@@ -59,7 +59,8 @@ public class ContractChecker {
   public void TestMethod(Program program, string methodFullName, List<IResult> arguments) {
     var l = methodFullName.Split(".");
     var method = (Method)Find(program.DefaultModule, l);
-    var moduleName = string.Join("_Compile.", l.Take(l.Length - 3));
+    new TestCase(method, options, arguments).Run(new Evaluator(program, options));
+    /*var moduleName = string.Join("_Compile.", l.Take(l.Length - 3));
     string className = null;
     if (method.EnclosingClass is DefaultClassDecl) {
       moduleName += l[^2] + "_Compile";
@@ -89,8 +90,10 @@ public class ContractChecker {
       anyFail = true;
     });
 
-    var result = PythonExecutor.RunPythonCodeAndReturn(moduleName, className, methodName, arguments, method.IsStatic);
-    Console.WriteLine($"Type: {result.Item1} {result.Item1.GetType()}");
+    var (ret, (ctx0, ctx1)) = PythonExecutor.RunPythonCodeAndReturn(moduleName, className, methodName, new List<string>(),
+    arguments, method.IsStatic);
+    Console.WriteLine($":- {ret} {ret.GetType()}");
+    Console.WriteLine($":- {ctx0}");
     
     // TODO: Support more than one return
     // TODO: Parse Python return and add it to the context
@@ -110,7 +113,7 @@ public class ContractChecker {
 
     if (!anyFail) {
       Console.WriteLine($"All pre- and post-conditions were satisfied");
-    }
+    }*/
   }
 
   public void CheckProgram(Program program) {

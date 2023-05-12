@@ -101,9 +101,6 @@ public class Evaluator {
         return Evaluate(expression.E, context);
       }
       // Conversion expressions
-      case ConversionExpr: {
-        break;
-      }
       case MultiSetFormingExpr expr: {
         var e0 = Evaluate(expr.E, context);
         return e0 is SequenceResult se ? new MultisetResult(se.Value) : new MultisetResult(((SetResult)e0).Value);
@@ -239,8 +236,6 @@ public class Evaluator {
         break;
       case MapComprehension:
         break;
-      case TypeTestExpr:
-        break;
       case DatatypeValue:
         break;
       case MultiSelectExpr:
@@ -264,6 +259,11 @@ public class Evaluator {
       case SuffixExpr:
         break;
       case NameSegment:
+        break;
+      // TODO: Types
+      case ConversionExpr:
+        break;
+      case TypeTestExpr:
         break;
     }
 

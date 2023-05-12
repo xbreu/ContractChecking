@@ -37,28 +37,6 @@ public class ObjectResult : IResult {
         }
       }
     }
-
-
-    /*foreach (var member in members) {
-      Console.Write("Found ");
-      Console.Write(member.WhatKind);
-      Console.Write(" declaration \"");
-      Console.Write(member.Name);
-      Console.WriteLine("\":");
-      switch (member) {
-        case Method m: {
-          foreach (var require in m.Req) {
-            var attrs = new Dictionary<string, IResult> { { "lit", new BooleanResult(false) } };
-            var ctx = baseContext.AddObj(new ObjectResult(attrs));
-            ctx.Add("d", IntegerResult.Zero());
-            var eval = new Evaluator(options);
-            Console.WriteLine(((BooleanResult)eval.Evaluate(require.E, ctx)).Value);
-          }
-
-          break;
-        }
-      }
-    }*/
   }
 
   public BooleanResult Eq(IResult other) {

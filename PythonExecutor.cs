@@ -29,44 +29,80 @@ internal static class PythonExecutor {
     }
   }
 
-  public static (object, object, object) RunPythonCodeAndReturn(string moduleName, string className, string methodName, List<IResult> args,
-    bool isStatic) {
-    object returnedVariableInitial, returnVariable, returnedVariableFinal;
-    const string varName = "__python_net_obj";
-    const string returnName = "__python_net_ret";
+  public static (IResult, (List<IResult>, List<IResult>), IResult) RunPythonCodeAndReturn(string moduleName,
+    string className, string methodName, List<string> modifies, List<IResult> args,
+    bool isStatic, string objectName = "_") {
+    PyObject returnVariable, trace;
     Initialize();
+    const string returnName = "__python_net_ret";
 
     var objArgs = args.Select(arg => arg.ToPythonObject()).ToList();
+    var capturedBefore = new List<IResult>();
+    var capturedAfter = new List<IResult>();
 
     using (Py.GIL()) {
       using (var scope = Py.CreateScope()) {
-        scope.Exec($"import sys\n" +
+        Console.WriteLine("Running Python code:");
+        Console.WriteLine("------------------------------------");
+
+        var code = $"import sys\n" +
                    $"sys.path.append('../test/test-py')\n" +
-                   $"import test\n");
+                   $"import test\n";
+        Console.Write(code);
+        scope.Exec(code);
 
         // Create object
         className ??= "default__";
-        var code = $"{varName} = test.module_.{moduleName}.{className}";
+        code = $"{objectName} = test.module_.{moduleName}.{className}";
         if (!isStatic) {
           code += "()";
         }
 
         code += "\n";
+        Console.Write(code);
         scope.Exec(code);
-        returnedVariableInitial = scope.Get<object>(varName);
+        capturedBefore.AddRange(modifies.Select(mod => FromPyObject(scope.Get(mod))));
 
         // Call the method
-        code = $"{returnName} = {varName}.{methodName}(";
+        code = $"{returnName} = {objectName}.{methodName}(";
         code = args.Aggregate(code, (current, arg) => current + arg.ToPythonObject() + ",");
-        code += ")";
+        code += ")\n";
+        Console.Write(code);
         scope.Exec(code);
 
         // Save final context
-        returnVariable = scope.Get<object>(returnName);
-        returnedVariableFinal = scope.Get<object>(varName);
+        returnVariable = scope.Get(returnName);
+        capturedAfter.AddRange(modifies.Select(mod => FromPyObject(scope.Get(mod))));
+
+        // Get trace
+        code = $"{returnName} = test.module_.{moduleName}.trace__\n";
+        Console.Write(code);
+        scope.Exec(code);
+        trace = scope.Get(returnName);
+        Console.WriteLine("------------------------------------");
       }
     }
 
-    return (returnVariable, returnedVariableInitial, returnedVariableFinal);
+    return (FromPyObject(returnVariable), (capturedBefore, capturedAfter), FromPyObject(trace));
+  }
+
+  private static IResult FromPyObject(PyObject obj) {
+    return obj switch {
+      PyIter pyIter => throw new NotImplementedException(),
+      Py.KeywordArguments keywordArguments => throw new NotImplementedException(),
+      PyDict pyDict => throw new NotImplementedException(),
+      PyFloat pyFloat => throw new NotImplementedException(),
+      PyInt pyInt => throw new NotImplementedException(),
+      PyList pyList => throw new NotImplementedException(),
+      PyString pyString => throw new NotImplementedException(),
+      PyTuple pyTuple => throw new NotImplementedException(),
+      PySequence pySequence => throw new NotImplementedException(),
+      PyIterable pyIterable => throw new NotImplementedException(),
+      PyModule pyModule => throw new NotImplementedException(),
+      PyNumber pyNumber => throw new NotImplementedException(),
+      PyType pyType => throw new NotImplementedException(),
+      PyObject pyObj => throw new NotImplementedException($"{obj.Repr()}"),
+      _ => throw new ArgumentOutOfRangeException($"{obj.Repr()} {obj.GetType()}")
+    };
   }
 }
