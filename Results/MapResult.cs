@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
 using Python.Runtime;
 
 namespace Microsoft.Dafny.ContractChecking;
@@ -16,6 +17,17 @@ public class MapResult : ATableResult<IResult> {
 
   public override object ToPythonObject() {
     return Value.ToPython();
+  }
+
+  public override string ToDaikonInput() {
+    var result = new StringBuilder();
+    result.Append("[ ");
+    foreach (var p in Value) {
+      result.Append($"[ {p.Key.ToDaikonInput()} {p.Value.ToDaikonInput()} ] ");
+    }
+
+    result.Append(']');
+    return result.ToString();
   }
 
   protected override bool AreDifferent(IResult left, IResult right) {

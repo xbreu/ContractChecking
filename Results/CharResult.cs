@@ -18,6 +18,10 @@ public class CharResult : IOrderableResult {
     return new PyString(value);
   }
 
+  public string ToDaikonInput() {
+    return value;
+  }
+
   public BooleanResult Lt(IOrderableResult other) {
     return false;
   }

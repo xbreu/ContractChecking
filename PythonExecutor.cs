@@ -6,8 +6,10 @@ using Python.Runtime;
 namespace Microsoft.Dafny.ContractChecking;
 
 internal static class PythonExecutor {
+  private const bool DebugPrint = false;
+
   private static void Initialize() {
-    const string pythonDll = @"/usr/lib/libpython3.10.so";
+    const string pythonDll = @"/usr/lib/libpython3.11.so";
     Environment.SetEnvironmentVariable("PYTHONNET_PYDLL", pythonDll);
     PythonEngine.Initialize();
   }
@@ -29,26 +31,27 @@ internal static class PythonExecutor {
     }
   }
 
-  public static (IResult, (List<IResult>, List<IResult>), IResult) RunPythonCodeAndReturn(string moduleName,
-    string className, string methodName, List<string> modifies, List<IResult> args,
+  public static IResult RunPythonCodeAndReturn(string moduleName,
+    string className, string methodName, List<List<IResult>> args,
     bool isStatic, string objectName = "_") {
-    PyObject returnVariable, trace;
+    PyObject trace;
     Initialize();
     const string returnName = "__python_net_ret";
 
-    var objArgs = args.Select(arg => arg.ToPythonObject()).ToList();
-    var capturedBefore = new List<IResult>();
-    var capturedAfter = new List<IResult>();
-
     using (Py.GIL()) {
       using (var scope = Py.CreateScope()) {
-        Console.WriteLine("Running Python code:");
-        Console.WriteLine("------------------------------------");
+        if (DebugPrint) {
+          Console.WriteLine("Running Python code:");
+          Console.WriteLine("------------------------------------");
+        }
 
         var code = $"import sys\n" +
                    $"sys.path.append('../test/test-py')\n" +
                    $"import test\n";
-        Console.Write(code);
+        if (DebugPrint) {
+          Console.Write(code);
+        }
+
         scope.Exec(code);
 
         // Create object
@@ -59,31 +62,39 @@ internal static class PythonExecutor {
         }
 
         code += "\n";
-        Console.Write(code);
+        if (DebugPrint) {
+          Console.Write(code);
+        }
+
         scope.Exec(code);
-        capturedBefore.AddRange(modifies.Select(mod => FromPyObject(scope.Get(mod))));
 
         // Call the method
-        code = $"{returnName} = {objectName}.{methodName}(";
-        code = args.Aggregate(code, (current, arg) => current + arg.ToPythonObject() + ",");
-        code += ")\n";
-        Console.Write(code);
-        scope.Exec(code);
+        foreach (var parameters in args) {
+          code = $"{returnName} = {objectName}.{methodName}(";
+          code = parameters.Aggregate(code, (current, arg) => current + arg.ToPythonObject() + ",");
+          code += ")\n";
+          if (DebugPrint) {
+            Console.Write(code);
+          }
 
-        // Save final context
-        returnVariable = scope.Get(returnName);
-        capturedAfter.AddRange(modifies.Select(mod => FromPyObject(scope.Get(mod))));
+          scope.Exec(code);
+        }
 
         // Get trace
         code = $"{returnName} = test.module_.{moduleName}.trace__\n";
-        Console.Write(code);
+        if (DebugPrint) {
+          Console.Write(code);
+        }
+
         scope.Exec(code);
         trace = scope.Get(returnName);
-        Console.WriteLine("------------------------------------");
+        if (DebugPrint) {
+          Console.WriteLine("------------------------------------");
+        }
       }
     }
 
-    return (FromPyObject(returnVariable), (capturedBefore, capturedAfter), FromPyObject(trace));
+    return FromPyObject(trace);
   }
 
   private static IResult FromPyObject(PyObject obj) {
@@ -92,16 +103,23 @@ internal static class PythonExecutor {
       Py.KeywordArguments keywordArguments => throw new NotImplementedException(),
       PyDict pyDict => throw new NotImplementedException(),
       PyFloat pyFloat => throw new NotImplementedException(),
-      PyInt pyInt => throw new NotImplementedException(),
-      PyList pyList => throw new NotImplementedException(),
-      PyString pyString => throw new NotImplementedException(),
-      PyTuple pyTuple => throw new NotImplementedException(),
+      PyInt pyInt => new IntegerResult(pyInt.ToInt64()),
+      PyList pyList => new SequenceResult(pyList.ToList().Select(FromPyObject)),
+      PyString pyString => new StringResult(pyString.Repr()),
+      PyTuple pyTuple => new SequenceResult(pyTuple.ToList().Select(FromPyObject)),
       PySequence pySequence => throw new NotImplementedException(),
       PyIterable pyIterable => throw new NotImplementedException(),
       PyModule pyModule => throw new NotImplementedException(),
       PyNumber pyNumber => throw new NotImplementedException(),
       PyType pyType => throw new NotImplementedException(),
-      PyObject pyObj => throw new NotImplementedException($"{obj.Repr()}"),
+      PyObject pyObj => pyObj.GetPythonType().Name switch {
+        "int" => FromPyObject(new PyInt(pyObj)),
+        "list" => FromPyObject(new PyList(pyObj)),
+        "tuple" => FromPyObject(new PyTuple(pyObj)),
+        "str" => FromPyObject(new PyString(pyObj)),
+        "NoneType" => null,
+        _ => throw new NotImplementedException($"Cannot convert \"{pyObj.GetPythonType().Name}\" to result: {pyObj}")
+      },
       _ => throw new ArgumentOutOfRangeException($"{obj.Repr()} {obj.GetType()}")
     };
   }

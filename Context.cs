@@ -4,20 +4,20 @@ using System.Linq;
 namespace Microsoft.Dafny.ContractChecking;
 
 public class Context {
-  private readonly Dictionary<string, IResult> arguments;
+  public readonly Dictionary<string, IResult> Arguments;
   private readonly List<ObjectResult> obj;
 
   public Context(List<ObjectResult> obj, Dictionary<string, IResult> args = null) {
     this.obj = obj;
-    arguments = args ?? new Dictionary<string, IResult>();
+    Arguments = args ?? new Dictionary<string, IResult>();
   }
 
   public void Add(string name, IResult value) {
-    arguments[name] = value;
+    Arguments[name] = value;
   }
 
   public Context Copy() {
-    var newArgs = arguments.ToDictionary(x => x.Key, x => x.Value);
+    var newArgs = Arguments.ToDictionary(x => x.Key, x => x.Value);
     return new Context(obj, newArgs);
   }
 
@@ -29,7 +29,7 @@ public class Context {
       }
     }
 
-    arguments.TryGetValue(name, out val);
+    Arguments.TryGetValue(name, out val);
     return val;
   }
 
@@ -40,8 +40,8 @@ public class Context {
   }
 
   public Context Merge(Context other) {
-    var result = arguments.ToDictionary(x => x.Key, x => x.Value);
-    foreach (var y in other.arguments) {
+    var result = Arguments.ToDictionary(x => x.Key, x => x.Value);
+    foreach (var y in other.Arguments) {
       result[y.Key] = y.Value;
     }
 

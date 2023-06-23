@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
 
 namespace Microsoft.Dafny.ContractChecking;
 
@@ -20,6 +21,7 @@ public abstract class ATableResult<T> : ICollectionResult {
   }
 
   public abstract object ToPythonObject();
+  public abstract string ToDaikonInput();
 
   protected abstract bool AreDifferent(T left, T right);
 

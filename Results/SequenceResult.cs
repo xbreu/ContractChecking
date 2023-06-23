@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
 using Python.Runtime;
 
 namespace Microsoft.Dafny.ContractChecking;
@@ -73,5 +74,16 @@ public class SequenceResult : ICollectionResult {
     result.Remove(result.Length - 1, 1);
     result += ")";
     return result;
+  }
+  
+  public string ToDaikonInput() {
+    var result = new StringBuilder();
+    result.Append("[ ");
+    foreach (var v in Value) {
+      result.Append($"{v.ToDaikonInput()} ");
+    }
+
+    result.Append(']');
+    return result.ToString();
   }
 }

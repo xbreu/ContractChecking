@@ -53,4 +53,8 @@ public class ObjectResult : IResult {
     result += ")";
     return result;
   }
+  
+  public string ToDaikonInput() {
+    throw new InvalidOperationException();
+  }
 }

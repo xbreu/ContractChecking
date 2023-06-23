@@ -17,6 +17,10 @@ public class BooleanResult : IResult {
     return Value.ToPython();
   }
 
+  public string ToDaikonInput() {
+    return this ? "1" : "0";
+  }
+
   public static implicit operator BooleanResult(bool b) {
     return new BooleanResult(b);
   }

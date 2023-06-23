@@ -4,21 +4,25 @@ using Python.Runtime;
 namespace Microsoft.Dafny.ContractChecking;
 
 public class StringResult : IResult {
-  private readonly string value;
+  public readonly string Value;
 
   public StringResult(string value) {
-    this.value = value;
+    this.Value = value;
   }
 
   public BooleanResult Eq(IResult other) {
-    return string.Compare(value, ((StringResult)other).value, StringComparison.Ordinal) == 0;
+    return string.Compare(Value, ((StringResult)other).Value, StringComparison.Ordinal) == 0;
   }
 
   public object ToPythonObject() {
-    return new PyString(value);
+    return new PyString(Value);
+  }
+
+  public string ToDaikonInput() {
+    return Value.Trim('\'');
   }
 
   public override string ToString() {
-    return $"String({value})";
+    return $"String({Value})";
   }
 }

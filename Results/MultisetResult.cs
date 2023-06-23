@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
 using Python.Runtime;
 
 namespace Microsoft.Dafny.ContractChecking;
@@ -79,6 +80,23 @@ public class MultisetResult : ATableResult<IntegerResult>, IBagResult {
     return Value.Values.Aggregate(len, (current, val) => (IntegerResult)current.Add(val));
   }
 
+  public override object ToPythonObject() {
+    return Value.ToPython();
+  }
+
+  public override string ToDaikonInput() {
+    var result = new StringBuilder();
+    result.Append("[ ");
+    foreach (var v in Value) {
+      for (var i = 0; i < v.Value.Value; i++) {
+        result.Append($"{v.Key.ToDaikonInput()} ");
+      }
+    }
+
+    result.Append(']');
+    return result.ToString();
+  }
+
   public IntegerResult Multiplicity(IResult element) {
     Value.TryGetValue(element, out var ret);
     ret ??= IntegerResult.Zero();
@@ -96,10 +114,6 @@ public class MultisetResult : ATableResult<IntegerResult>, IBagResult {
     }
 
     return new MultisetResult(result);
-  }
-
-  public override object ToPythonObject() {
-    return Value.ToPython();
   }
 
   protected override bool AreDifferent(IntegerResult left, IntegerResult right) {

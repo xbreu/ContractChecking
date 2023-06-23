@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using DafnyTestGeneration;
+using Microsoft.Dafny.ContractChecking.Fixes;
 
 namespace Microsoft.Dafny.ContractChecking;
 
@@ -13,20 +15,32 @@ public class ContractChecker {
     this.programFile = programFile;
   }
 
-  public static Declaration Find(Declaration decl, IEnumerable<string> names) {
+  private static Declaration Find(Declaration decl, IEnumerable<string> names) {
     var current = decl;
+
     foreach (var name in names) {
+      if (name == "module_") {
+        continue;
+      }
+
+      var realName = name == "default__" ? "_default" : name;
+
       switch (current) {
         case ModuleDecl md: {
           var sig = md.Signature;
 
-          if (sig.TopLevels.TryGetValue(name, out var level)) {
+          if (sig.TopLevels.TryGetValue(realName, out var level)) {
             current = level;
             continue;
           }
 
-          if (sig.StaticMembers.TryGetValue(name, out var member)) {
+          if (sig.StaticMembers.TryGetValue(realName, out var member)) {
             current = member;
+            continue;
+          }
+
+          if (sig.TopLevels.TryGetValue("_default", out level)) {
+            current = level;
             continue;
           }
         }
@@ -34,7 +48,7 @@ public class ContractChecker {
         case TopLevelDeclWithMembers sig: {
           var found = false;
           foreach (var member in sig.Members.Union(sig.InheritedMembers)) {
-            if (!member.Name.Equals(name)) {
+            if (!member.Name.Equals(realName)) {
               continue;
             }
 
@@ -50,75 +64,46 @@ public class ContractChecker {
           break;
       }
 
-      throw new ArgumentException($"Could not find member {name} on {current.Name}");
+      throw new ArgumentException($"Could not find member {realName} on {current.Name}");
     }
 
     return current;
   }
 
-  public void TestMethod(Program program, string methodFullName, List<IResult> arguments) {
+  private SequenceResult TestMethod(Program program, string methodFullName, List<List<IResult>> arguments) {
+    var method = FindMethod(program, methodFullName);
+    var test = new TestCase(method, options, program, arguments);
+    var trace = test.Run();
+    // Console.WriteLine("Daikon Input");
+    // Console.WriteLine("------------");
+    // Console.WriteLine(daikonInput);
+    return trace;
+  }
+
+  public static Method FindMethod(Program program, string methodFullName) {
     var l = methodFullName.Split(".");
-    var method = (Method)Find(program.DefaultModule, l);
-    new TestCase(method, options, arguments).Run(new Evaluator(program, options));
-    /*var moduleName = string.Join("_Compile.", l.Take(l.Length - 3));
-    string className = null;
-    if (method.EnclosingClass is DefaultClassDecl) {
-      moduleName += l[^2] + "_Compile";
-    } else {
-      className = l[^2];
-    }
-
-    className ??= "default__";
-
-    var methodName = l.Last();
-    
-    Console.WriteLine($"Testing contract of method \"{methodName}\" from module \"{moduleName}\" and class \"{className}\"...");
-
-    var i = 0;
-    var parameters = method.Ins.ToDictionary(formal => formal.Name, _ => arguments[i++]);
-    var ctx = new Context(null, parameters);
-    var anyFail = false;
-    method.Req.ForEach(req => {
-      var evaluator = new Evaluator(program, options);
-      var e = req.E;
-      var satisfied = (BooleanResult)evaluator.Evaluate(e, ctx);
-      if (satisfied) {
-        return;
-      }
-
-      Console.WriteLine($"The pre-condition \"{req.E}\" was not satisfied");
-      anyFail = true;
-    });
-
-    var (ret, (ctx0, ctx1)) = PythonExecutor.RunPythonCodeAndReturn(moduleName, className, methodName, new List<string>(),
-    arguments, method.IsStatic);
-    Console.WriteLine($":- {ret} {ret.GetType()}");
-    Console.WriteLine($":- {ctx0}");
-    
-    // TODO: Support more than one return
-    // TODO: Parse Python return and add it to the context
-    // ctx.Add(method.Outs[0].Name, result.Item1);
-    
-    method.Ens.ForEach(ens => {
-      var evaluator = new Evaluator(program, options);
-      var e = ens.E;
-      var satisfied = (BooleanResult)evaluator.Evaluate(e, ctx);
-      if (satisfied) {
-        return;
-      }
-
-      Console.WriteLine($"The post-condition \"{ens.E}\" was not satisfied");
-      anyFail = true;
-    });
-
-    if (!anyFail) {
-      Console.WriteLine($"All pre- and post-conditions were satisfied");
-    }*/
+    return (Method)Find(program.DefaultModule, l);
   }
 
   public void CheckProgram(Program program) {
-    TestMethod(program, "M.test", new List<IResult> {
-      new IntegerResult(1)
-    });
+    var arguments = new List<List<IResult>>();
+    for (var i = -10; i < 11; i++) {
+      arguments.Add(new List<IResult> { new IntegerResult(i) });
+    }
+
+    var trace = TestMethod(program, "M.duplicate", arguments);
+    new FixGeneration(options).Weakening(null, trace, program);
+    // Console.WriteLine(GetTestArguments(program).CountAsync());
+  }
+
+  private static async IAsyncEnumerable<TestMethod> GetTestArguments(Program program) {
+    var tests = DafnyTestGeneration.Main.GetTestMethodsForProgram(program);
+    await foreach (var test in tests) {
+      Console.WriteLine($"-- {test.MethodName}");
+      test.ArgValues.ForEach(Console.WriteLine);
+      Console.WriteLine();
+    }
+
+    yield return null;
   }
 }

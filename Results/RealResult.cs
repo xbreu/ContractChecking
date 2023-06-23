@@ -51,4 +51,8 @@ public class RealResult : INumericResult {
   public override string ToString() {
     return $"Real({value.ToString()})";
   }
+  
+  public string ToDaikonInput() {
+    return value.ToString();
+  }
 }

@@ -22,6 +22,10 @@ public class IntegerResult : INumericResult {
     return new PyInt(Value);
   }
 
+  public string ToDaikonInput() {
+    return Value.ToString();
+  }
+
   public BooleanResult Lt(IOrderableResult other) {
     return Value < ((IntegerResult)other).Value;
   }

@@ -29,6 +29,10 @@ internal class LambdaResult : IResult {
     return null;
   }
 
+  public string ToDaikonInput() {
+    throw new System.NotImplementedException();
+  }
+
   public IResult Evaluate(Context ctx) {
     return new Evaluator(null, options).Evaluate(body, closure.Merge(ctx));
   }

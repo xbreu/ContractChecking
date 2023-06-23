@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
 using Python.Runtime;
 
 namespace Microsoft.Dafny.ContractChecking;
@@ -41,6 +42,17 @@ public class SetResult : IBagResult {
 
   public object ToPythonObject() {
     return Value.ToPython();
+  }
+  
+  public string ToDaikonInput() {
+    var result = new StringBuilder();
+    result.Append("[ ");
+    foreach (var v in Value) {
+      result.Append($"{v.ToDaikonInput()} ");
+    }
+
+    result.Append(']');
+    return result.ToString();
   }
 
   public override string ToString() {

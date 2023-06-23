@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using SID = Microsoft.Dafny.SpecialField.ID;
 using BEO = Microsoft.Dafny.BinaryExpr.ResolvedOpcode;
+using BEOU = Microsoft.Dafny.BinaryExpr.Opcode;
 using UEO = Microsoft.Dafny.UnaryOpExpr.ResolvedOpcode;
 
 namespace Microsoft.Dafny.ContractChecking;
@@ -17,9 +18,8 @@ public class Evaluator {
   }
 
   public IResult Evaluate(Expression eu, Context context) {
-    var e = eu.Resolved;
-    // Console.WriteLine(e.ToString());
-    // Console.WriteLine($"{e.GetType()}");
+    var e = eu.WasResolved() ? eu.Resolved : eu;
+    // Console.WriteLine($"- {e} ({e.GetType()})");
 
     switch (e) {
       // Final expressions
@@ -127,58 +127,60 @@ public class Evaluator {
       case BinaryExpr expr: {
         var e0 = Evaluate(expr.E0, context);
         var e1 = Evaluate(expr.E1, context);
-        return expr.ResolvedOp switch {
+        var rOp = expr.WasResolved() ? expr.ResolvedOp : BEO.Add;
+        return (expr.WasResolved(), rOp, expr.Op) switch {
           // booleans
-          BEO.Iff => ((BooleanResult)e0).Iff((BooleanResult)e1),
-          BEO.Imp => ((BooleanResult)e0).Imp((BooleanResult)e1),
-          BEO.And => ((BooleanResult)e0).And((BooleanResult)e1),
-          BEO.Or => ((BooleanResult)e0).Or((BooleanResult)e1),
+          (true, BEO.Iff, _) or (false, _, BEOU.Iff) => ((BooleanResult)e0).Iff((BooleanResult)e1),
+          (true, BEO.Imp, _) or (false, _, BEOU.Imp) => ((BooleanResult)e0).Imp((BooleanResult)e1),
+          (true, BEO.And, _) or (false, _, BEOU.And) => ((BooleanResult)e0).And((BooleanResult)e1),
+          (true, BEO.Or, _) or (false, _, BEOU.Or)=> ((BooleanResult)e0).Or((BooleanResult)e1),
           // non-collection types
-          BEO.EqCommon or BEO.SeqEq or BEO.SetEq or BEO.MultiSetEq or BEO.MapEq => e0.Eq(e1),
-          BEO.NeqCommon or BEO.SeqNeq or BEO.SetNeq or BEO.MultiSetNeq or BEO.MapNeq => e0.Neq(e1),
+          (true, BEO.EqCommon or BEO.SeqEq or BEO.SetEq or BEO.MultiSetEq or BEO.MapEq, _) or (false, _, BEOU.Eq) => e0.Eq(e1),
+          (true, BEO.NeqCommon or BEO.SeqNeq or BEO.SetNeq or BEO.MultiSetNeq or BEO.MapNeq, _) or (false, _, BEOU.Neq) => e0.Neq(e1),
           // integers, reals, bitvectors, char
-          BEO.Lt or BEO.LtChar => ((IOrderableResult)e0).Lt((IOrderableResult)e1),
-          BEO.Le or BEO.LeChar => ((IOrderableResult)e0).Le((IOrderableResult)e1),
-          BEO.Ge or BEO.GeChar => ((IOrderableResult)e0).Ge((IOrderableResult)e1),
-          BEO.Gt or BEO.GtChar => ((IOrderableResult)e0).Gt((IOrderableResult)e1),
+          (true, BEO.Lt or BEO.LtChar, _) or (false, _, BEOU.Lt) => ((IOrderableResult)e0).Lt((IOrderableResult)e1),
+          (true, BEO.Le or BEO.LeChar, _) or (false, _, BEOU.Le) => ((IOrderableResult)e0).Le((IOrderableResult)e1),
+          (true, BEO.Ge or BEO.GeChar, _) or (false, _, BEOU.Ge) => ((IOrderableResult)e0).Ge((IOrderableResult)e1),
+          (true, BEO.Gt or BEO.GtChar, _) or (false, _, BEOU.Gt) => ((IOrderableResult)e0).Gt((IOrderableResult)e1),
           // integers, reals, bitvectors
-          BEO.Add => ((INumericResult)e0).Add((INumericResult)e1),
-          BEO.Sub => ((INumericResult)e0).Sub((INumericResult)e1),
-          BEO.Mul => ((INumericResult)e0).Mul((INumericResult)e1),
-          BEO.Div => ((INumericResult)e0).Div((INumericResult)e1),
+          (true, BEO.Add, _) or (false, _, BEOU.Add) => ((INumericResult)e0).Add((INumericResult)e1),
+          (true, BEO.Sub, _) or (false, _, BEOU.Sub) => ((INumericResult)e0).Sub((INumericResult)e1),
+          (true, BEO.Mul, _) or (false, _, BEOU.Mul) => ((INumericResult)e0).Mul((INumericResult)e1),
+          (true, BEO.Div, _) or (false, _, BEOU.Div) => ((INumericResult)e0).Div((INumericResult)e1),
           // integer
-          BEO.Mod => ((IntegerResult)e0).Mod((IntegerResult)e1),
+          (true, BEO.Mod, _) or (false, _, BEOU.Mod) => ((IntegerResult)e0).Mod((IntegerResult)e1),
           // TODO: bitvectors
-          BEO.LeftShift => null,
-          BEO.RightShift => null,
-          BEO.BitwiseAnd => null,
-          BEO.BitwiseOr => null,
-          BEO.BitwiseXor => null,
+          (true, BEO.LeftShift, _) => null,
+          (true, BEO.RightShift, _) => null,
+          (true, BEO.BitwiseAnd, _) => null,
+          (true, BEO.BitwiseOr, _) => null,
+          (true, BEO.BitwiseXor, _) => null,
           // sets, multi-sets
-          BEO.ProperSubset or BEO.ProperMultiSubset => ((IBagResult)e0).ProperSubset((IBagResult)e1),
-          BEO.Subset or BEO.MultiSubset => ((IBagResult)e0).Subset((IBagResult)e1),
-          BEO.Superset or BEO.MultiSuperset => ((IBagResult)e0).Superset((IBagResult)e1),
-          BEO.ProperSuperset or BEO.ProperMultiSuperset => ((IBagResult)e0).ProperSuperset((IBagResult)e1),
-          BEO.Disjoint or BEO.MultiSetDisjoint => ((IBagResult)e0).Disjoint((IBagResult)e1),
-          BEO.Union or BEO.MultiSetUnion => ((IBagResult)e0).Union((IBagResult)e1),
-          BEO.Intersection or BEO.MultiSetIntersection => ((IBagResult)e0).Intersection((IBagResult)e1),
-          BEO.SetDifference or BEO.MultiSetDifference => ((IBagResult)e0).Difference((IBagResult)e1),
+          (true, BEO.ProperSubset or BEO.ProperMultiSubset, _) => ((IBagResult)e0).ProperSubset((IBagResult)e1),
+          (true, BEO.Subset or BEO.MultiSubset, _) => ((IBagResult)e0).Subset((IBagResult)e1),
+          (true, BEO.Superset or BEO.MultiSuperset, _) => ((IBagResult)e0).Superset((IBagResult)e1),
+          (true, BEO.ProperSuperset or BEO.ProperMultiSuperset, _) => ((IBagResult)e0).ProperSuperset((IBagResult)e1),
+          (true, BEO.Disjoint or BEO.MultiSetDisjoint, _) => ((IBagResult)e0).Disjoint((IBagResult)e1),
+          (true, BEO.Union or BEO.MultiSetUnion, _) => ((IBagResult)e0).Union((IBagResult)e1),
+          (true, BEO.Intersection or BEO.MultiSetIntersection, _) => ((IBagResult)e0).Intersection((IBagResult)e1),
+          (true, BEO.SetDifference or BEO.MultiSetDifference, _) => ((IBagResult)e0).Difference((IBagResult)e1),
           // sets, multi-sets, sequences, maps
-          BEO.InSet or BEO.InMultiSet or BEO.InSeq or BEO.InMap => ((ICollectionResult)e1).Contains(e0),
-          BEO.NotInSet or BEO.NotInMultiSet or BEO.NotInSeq or BEO.NotInMap =>
+          (true, BEO.InSet or BEO.InMultiSet or BEO.InSeq or BEO.InMap, _) => ((ICollectionResult)e1).Contains(e0),
+          (true, BEO.NotInSet or BEO.NotInMultiSet or BEO.NotInSeq or BEO.NotInMap, _) =>
             ((ICollectionResult)e1).DoesNotContain(e0),
           // sequences
-          BEO.ProperPrefix => ((SequenceResult)e0).ProperPrefix((SequenceResult)e1),
-          BEO.Prefix => ((SequenceResult)e0).Prefix((SequenceResult)e1),
-          BEO.Concat => ((SequenceResult)e0).Concat((SequenceResult)e1),
+          (true, BEO.ProperPrefix, _) => ((SequenceResult)e0).ProperPrefix((SequenceResult)e1),
+          (true, BEO.Prefix, _) => ((SequenceResult)e0).Prefix((SequenceResult)e1),
+          (true, BEO.Concat, _) => ((SequenceResult)e0).Concat((SequenceResult)e1),
           // maps
-          BEO.MapMerge => ((MapResult)e0).Merge((MapResult)e1),
-          BEO.MapSubtraction => ((MapResult)e0).Difference((SetResult)e1),
+          (true, BEO.MapMerge, _) => ((MapResult)e0).Merge((MapResult)e1),
+          (true, BEO.MapSubtraction, _) => ((MapResult)e0).Difference((SetResult)e1),
           // TODO: datatypes
-          BEO.RankLt => null,
-          BEO.RankGt => null,
+          (true, BEO.RankLt, _) => null,
+          (true, BEO.RankGt, _) => null,
           // not supposed to get here after resolution
-          _ => throw new ArgumentOutOfRangeException()
+          (true, _, _) => throw new ArgumentOutOfRangeException("Not supposed to get here"),
+          (false, _, var t) => throw new ArgumentOutOfRangeException($"Type {t}")
         };
       }
       // Collection expressions
