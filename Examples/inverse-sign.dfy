@@ -17,11 +17,7 @@ function sign(x : int) : int
 
 method div(x : int, y : int) returns (d : int)
   // requires y > 0
-  ensures y > 0
 {
-  if (y <= 0) {
-    return 0;
-  }
   var s := sign(y);
   var inv := inverse(s);
   d := x * inv;
