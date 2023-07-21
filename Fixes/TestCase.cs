@@ -12,19 +12,15 @@ public class TestCase {
 
   private readonly List<List<IResult>> arguments;
 
-  private readonly Method method;
-  private readonly DafnyOptions options;
-  private readonly Program program;
+  private readonly MemberDecl method;
 
-  public TestCase(Method method, DafnyOptions options, Program program, List<List<IResult>> arguments = null) {
+  public TestCase(MemberDecl method, List<List<IResult>> arguments = null) {
     this.method = method;
-    this.options = options;
-    this.program = program;
     this.arguments = arguments ?? new List<List<IResult>>();
   }
 
   public SequenceResult Run() {
-    Console.WriteLine($"Running method {method.Name}");
+    // Console.WriteLine($"Running method {method.Name}");
     var trace = PythonExecutor.RunPythonCodeAndReturn(
       DaikonTrace.GetModuleName(method), DaikonTrace.GetClassName(method), method.Name,
       arguments, method.IsStatic);

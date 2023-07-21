@@ -5,18 +5,11 @@ using SID = Microsoft.Dafny.SpecialField.ID;
 using BEO = Microsoft.Dafny.BinaryExpr.ResolvedOpcode;
 using BEOU = Microsoft.Dafny.BinaryExpr.Opcode;
 using UEO = Microsoft.Dafny.UnaryOpExpr.ResolvedOpcode;
+using UEOU = Microsoft.Dafny.UnaryOpExpr.Opcode;
 
 namespace Microsoft.Dafny.ContractChecking;
 
 public class Evaluator {
-  private readonly DafnyOptions options;
-  private readonly Program program;
-
-  public Evaluator(Program program, DafnyOptions options) {
-    this.options = options;
-    this.program = program;
-  }
-
   public IResult Evaluate(Expression eu, Context context) {
     var e = eu.WasResolved() ? eu.Resolved : eu;
     // Console.WriteLine($"- {e} ({e.GetType()})");
@@ -108,13 +101,15 @@ public class Evaluator {
       // Unary expressions
       case UnaryOpExpr expr: {
         var e0 = Evaluate(expr.E, context);
-        return expr.ResolvedOp switch {
-          UEO.BVNot => null, // TODO: bitvectors
-          UEO.BoolNot => ((BooleanResult)e0).Not(),
-          UEO.SeqLength or UEO.SetCard or UEO.MultiSetCard or UEO.MapCard => ((ICollectionResult)e0).Length(),
-          UEO.Fresh => null, // TODO
-          UEO.Allocated => null, // TODO
-          UEO.Lit => e0,
+        var rOp = expr.WasResolved() ? expr.ResolvedOp : UEO.Lit;
+        return (expr.WasResolved(), rOp, expr.Op) switch {
+          (true, UEO.BVNot, _) => null, // TODO: bitvectors
+          (true, UEO.BoolNot, _) or (false, _, UEOU.Not) => ((BooleanResult)e0).Not(),
+          (true, UEO.SeqLength, _) or (true, UEO.SetCard, _) or (true, UEO.MultiSetCard, _) or (true, UEO.MapCard, _)
+            or (false, _, UEOU.Cardinality) => ((ICollectionResult)e0).Length(),
+          (true, UEO.Fresh, _) => null, // TODO
+          (true, UEO.Allocated, _) => null, // TODO
+          (true, UEO.Lit, _) => e0,
           // not supposed to get here after resolution
           _ => throw new ArgumentOutOfRangeException()
         };
@@ -133,10 +128,12 @@ public class Evaluator {
           (true, BEO.Iff, _) or (false, _, BEOU.Iff) => ((BooleanResult)e0).Iff((BooleanResult)e1),
           (true, BEO.Imp, _) or (false, _, BEOU.Imp) => ((BooleanResult)e0).Imp((BooleanResult)e1),
           (true, BEO.And, _) or (false, _, BEOU.And) => ((BooleanResult)e0).And((BooleanResult)e1),
-          (true, BEO.Or, _) or (false, _, BEOU.Or)=> ((BooleanResult)e0).Or((BooleanResult)e1),
+          (true, BEO.Or, _) or (false, _, BEOU.Or) => ((BooleanResult)e0).Or((BooleanResult)e1),
           // non-collection types
-          (true, BEO.EqCommon or BEO.SeqEq or BEO.SetEq or BEO.MultiSetEq or BEO.MapEq, _) or (false, _, BEOU.Eq) => e0.Eq(e1),
-          (true, BEO.NeqCommon or BEO.SeqNeq or BEO.SetNeq or BEO.MultiSetNeq or BEO.MapNeq, _) or (false, _, BEOU.Neq) => e0.Neq(e1),
+          (true, BEO.EqCommon or BEO.SeqEq or BEO.SetEq or BEO.MultiSetEq or BEO.MapEq, _)
+            or (false, _, BEOU.Eq) => e0.Eq(e1),
+          (true, BEO.NeqCommon or BEO.SeqNeq or BEO.SetNeq or BEO.MultiSetNeq or BEO.MapNeq, _)
+            or (false, _, BEOU.Neq) => e0.Neq(e1),
           // integers, reals, bitvectors, char
           (true, BEO.Lt or BEO.LtChar, _) or (false, _, BEOU.Lt) => ((IOrderableResult)e0).Lt((IOrderableResult)e1),
           (true, BEO.Le or BEO.LeChar, _) or (false, _, BEOU.Le) => ((IOrderableResult)e0).Le((IOrderableResult)e1),
@@ -222,12 +219,21 @@ public class Evaluator {
       // Function expressions
       case FunctionCallExpr expr: {
         var name = expr.Name;
-        var receiver = Evaluate(expr.Receiver, context);
+        // TODO: var receiver = Evaluate(expr.Receiver, context);
         var args = expr.Args.Select(arg => Evaluate(arg, context)).ToList();
-        break;
+        var func = ContractChecker.FindFunction(name);
+        var names = func.Formals.Select(formal => formal.Name).ToList();
+        var dict = new Dictionary<string, IResult>();
+        var i = 0;
+        foreach (var argName in names) {
+          dict[argName] = args[i++];
+        }
+
+        var funContext = new Context(new List<ObjectResult>(), dict);
+        return Evaluate(func.Body, funContext);
       }
       case LambdaExpr expr: {
-        return new LambdaResult(options, expr.Body, expr.AllBoundVars);
+        return new LambdaResult(expr.Body, expr.AllBoundVars);
       }
       case ITEExpr expr: {
         var testR = (BooleanResult)Evaluate(expr.Test, context);

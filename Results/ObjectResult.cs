@@ -16,11 +16,10 @@ public class ObjectResult : IResult {
 
   public ObjectResult(Type t) {
     IsEmpty = true;
-    Console.WriteLine(t);
     // TODO
   }
 
-  public ObjectResult(List<MemberDecl> members, DafnyOptions options) {
+  public ObjectResult(List<MemberDecl> members) {
     IsEmpty = true;
     Attributes = new Dictionary<string, IResult>();
     var list = new List<ObjectResult> { this };
@@ -31,7 +30,7 @@ public class ObjectResult : IResult {
           Attributes.Add(member.Name, null);
           break;
         case Function f: {
-          var l = new LambdaResult(options, f.Body, f.Formals, baseContext);
+          var l = new LambdaResult(f.Body, f.Formals, baseContext);
           Attributes.Add(f.Name, l);
           break;
         }

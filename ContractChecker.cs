@@ -1,18 +1,21 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
+using DafnyDriver.ContractChecking.Fixes;
 using DafnyTestGeneration;
 using Microsoft.Dafny.ContractChecking.Fixes;
 
 namespace Microsoft.Dafny.ContractChecking;
 
 public class ContractChecker {
-  private readonly DafnyOptions options;
   private readonly string programFile;
 
   public ContractChecker(DafnyOptions options, string programFile) {
-    this.options = options;
     this.programFile = programFile;
+    FixConfiguration.CreateInstance(null, null, options);
   }
 
   private static Declaration Find(Declaration decl, IEnumerable<string> names) {
@@ -70,30 +73,68 @@ public class ContractChecker {
     return current;
   }
 
-  private SequenceResult TestMethod(Program program, string methodFullName, List<List<IResult>> arguments) {
-    var method = FindMethod(program, methodFullName);
-    var test = new TestCase(method, options, program, arguments);
+  private SequenceResult TestMethod(string methodFullName, List<List<IResult>> arguments) {
+    var method = FindMethod(methodFullName);
+    var test = new TestCase(method, arguments);
     var trace = test.Run();
-    // Console.WriteLine("Daikon Input");
-    // Console.WriteLine("------------");
-    // Console.WriteLine(daikonInput);
     return trace;
   }
 
-  public static Method FindMethod(Program program, string methodFullName) {
+  public static Method FindMethod(string methodFullName) {
     var l = methodFullName.Split(".");
-    return (Method)Find(program.DefaultModule, l);
+    return (Method)Find(FixConfiguration.GetProgram().DefaultModule, l);
   }
 
-  public void CheckProgram(Program program) {
-    var arguments = new List<List<IResult>>();
-    for (var i = -10; i < 11; i++) {
-      arguments.Add(new List<IResult> { new IntegerResult(i) });
+  public static Function FindFunction(string methodFullName) {
+    var l = methodFullName.Split(".");
+    return (Function)Find(FixConfiguration.GetProgram().DefaultModule, l);
+  }
+
+  public async Task CheckProgram(Program program) {
+    Stopwatch total;
+    total = Stopwatch.StartNew();
+
+    FixConfiguration.Instance.Program = program;
+
+    Stopwatch sw;
+    var argumentList = new List<IResult>();
+    for (var i = -10; i < 10; i++) {
+      argumentList.Add(new IntegerResult(i));
     }
 
-    var trace = TestMethod(program, "M.duplicate", arguments);
-    new FixGeneration(options).Weakening(null, trace, program);
-    // Console.WriteLine(GetTestArguments(program).CountAsync());
+    var arguments = (from a in argumentList from b in argumentList select new List<IResult> { a, b }).ToList();
+    const string name = "Enter";
+
+    sw = Stopwatch.StartNew();
+    var trace = TestMethod(name, arguments);
+    await using (var writer = new StreamWriter("../test/.trace.py")) {
+      // TODO: write it in a better way
+      await writer.WriteAsync(trace.ToDaikonInput());
+    }
+    Console.WriteLine($"{sw.ElapsedMilliseconds,7:D} ms to run {20} tests in Python");
+    sw.Stop();
+
+    sw = Stopwatch.StartNew();
+    var outerMethod = FindMethod("Enter");
+    var faultyMethod = FindMethod("Faulty");
+    FixConfiguration.Instance.Goal = new FixGoal(outerMethod, faultyMethod, ContractType.PRE_CONDITION);
+    Console.WriteLine($"\t{sw.ElapsedMilliseconds,6:D} ms to search for method {name} in the program");
+    sw.Stop();
+
+    var fg = new FixGeneration();
+
+    sw = Stopwatch.StartNew();
+    var (phi, w) = await fg.Weakening(trace);
+    Console.WriteLine($"\t{sw.ElapsedMilliseconds,6:D} ms to generate weakening fixes");
+    sw.Stop();
+
+    sw = Stopwatch.StartNew();
+    var fixes = await fg.Strengthening(trace, w);
+    Console.WriteLine($"\t{sw.ElapsedMilliseconds,6:D} ms to generate strengthening fixes");
+    sw.Stop();
+
+    Console.WriteLine($"{total.ElapsedMilliseconds,7:D} ms total runtime");
+    total.Stop();
   }
 
   private static async IAsyncEnumerable<TestMethod> GetTestArguments(Program program) {

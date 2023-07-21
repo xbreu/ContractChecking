@@ -53,6 +53,6 @@ public class RealResult : INumericResult {
   }
   
   public string ToDaikonInput() {
-    return value.ToString();
+    return value.ToDecimalString();
   }
 }

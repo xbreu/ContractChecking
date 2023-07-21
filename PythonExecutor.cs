@@ -1,12 +1,15 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
+using DafnyDriver.ContractChecking.Fixes;
+using Microsoft.BaseTypes;
 using Python.Runtime;
 
 namespace Microsoft.Dafny.ContractChecking;
 
 internal static class PythonExecutor {
-  private const bool DebugPrint = false;
+  private static readonly bool DebugPrint = FixConfiguration.ShouldDebug(DebugInformation.PYTHON_EXECUTIONS);
 
   private static void Initialize() {
     const string pythonDll = @"/usr/lib/libpython3.11.so";
@@ -42,7 +45,6 @@ internal static class PythonExecutor {
       using (var scope = Py.CreateScope()) {
         if (DebugPrint) {
           Console.WriteLine("Running Python code:");
-          Console.WriteLine("------------------------------------");
         }
 
         var code = $"import sys\n" +
@@ -88,9 +90,6 @@ internal static class PythonExecutor {
 
         scope.Exec(code);
         trace = scope.Get(returnName);
-        if (DebugPrint) {
-          Console.WriteLine("------------------------------------");
-        }
       }
     }
 
@@ -117,6 +116,8 @@ internal static class PythonExecutor {
         "list" => FromPyObject(new PyList(pyObj)),
         "tuple" => FromPyObject(new PyTuple(pyObj)),
         "str" => FromPyObject(new PyString(pyObj)),
+        "bool" => new BooleanResult($"{pyObj}" == "True"),
+        "BigRational" => new RealResult(BigDec.FromString($"{pyObj}")),
         "NoneType" => null,
         _ => throw new NotImplementedException($"Cannot convert \"{pyObj.GetPythonType().Name}\" to result: {pyObj}")
       },

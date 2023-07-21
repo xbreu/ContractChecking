@@ -1,16 +1,17 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using DafnyDriver.ContractChecking.Fixes;
 
 namespace Microsoft.Dafny.ContractChecking;
 
 public static class InvariantParser {
-  public static List<(string, bool, Expression)> ParseDaikonOutput(string output) {
+  public static List<(string, ContractType, Expression)> ParseDaikonOutput(string output) {
     var points = output.Split("===========================================================================\n").ToList();
     // Information about run
     points.RemoveAt(0);
 
-    var result = new List<(string, bool, Expression)>();
+    var result = new List<(string, ContractType, Expression)>();
 
     foreach (var point in points) {
       var lines = point.Split('\n').ToList();
@@ -24,7 +25,13 @@ public static class InvariantParser {
           break;
         }
 
-        result.Add((methodName, enter, ParseInvariant(line)));
+        try {
+          result.Add((methodName, enter ? ContractType.PRE_CONDITION : ContractType.POST_CONDITION, ParseInvariant(line)));
+        } catch {
+          if (FixConfiguration.ShouldDebug(DebugInformation.NOT_PARSED_INVARIANTS)) {
+            Console.Error.WriteLine($"WARNING: Could not parse the invariant \"{line}\"");
+          }
+        }
       }
     }
 
@@ -79,6 +86,7 @@ public static class InvariantParser {
         tokens.Add(w switch {
           "NOT" => new SimplifyToken(SimplifyToken.SimplifyTokenType.NOT),
           "AND" => new SimplifyToken(SimplifyToken.SimplifyTokenType.AND),
+          "OR" => new SimplifyToken(SimplifyToken.SimplifyTokenType.OR),
           "IFF" => new SimplifyToken(SimplifyToken.SimplifyTokenType.IFF),
           "EQ" => new SimplifyToken(SimplifyToken.SimplifyTokenType.EQ),
           "NEQ" => new SimplifyToken(SimplifyToken.SimplifyTokenType.NEQ),
@@ -89,6 +97,7 @@ public static class InvariantParser {
           ">=" => new SimplifyToken(SimplifyToken.SimplifyTokenType.GE),
           "+" => new SimplifyToken(SimplifyToken.SimplifyTokenType.ADD),
           "*" => new SimplifyToken(SimplifyToken.SimplifyTokenType.MUL),
+          "MOD" => new SimplifyToken(SimplifyToken.SimplifyTokenType.MOD),
           _ => new IntSimplifyToken(int.Parse(w))
         });
 
@@ -123,6 +132,7 @@ public class SimplifyExpression {
     return T.Type switch {
       SimplifyToken.SimplifyTokenType.NOT => new UnaryOpExpr(null, UnaryOpExpr.Opcode.Not, argE[0]),
       SimplifyToken.SimplifyTokenType.AND => new BinaryExpr(null, BinaryExpr.Opcode.And, argE[0], argE[1]),
+      SimplifyToken.SimplifyTokenType.OR => new BinaryExpr(null, BinaryExpr.Opcode.Or, argE[0], argE[1]),
       SimplifyToken.SimplifyTokenType.IFF => new BinaryExpr(null, BinaryExpr.Opcode.Iff, argE[0], argE[1]),
       SimplifyToken.SimplifyTokenType.EQ => new BinaryExpr(null, BinaryExpr.Opcode.Eq, argE[0], argE[1]),
       SimplifyToken.SimplifyTokenType.NEQ => new BinaryExpr(null, BinaryExpr.Opcode.Neq, argE[0], argE[1]),
@@ -133,6 +143,7 @@ public class SimplifyExpression {
       SimplifyToken.SimplifyTokenType.IMPLIES => new BinaryExpr(null, BinaryExpr.Opcode.Imp, argE[0], argE[1]),
       SimplifyToken.SimplifyTokenType.ADD => new BinaryExpr(null, BinaryExpr.Opcode.Add, argE[0], argE[1]),
       SimplifyToken.SimplifyTokenType.MUL => new BinaryExpr(null, BinaryExpr.Opcode.Mul, argE[0], argE[1]),
+      SimplifyToken.SimplifyTokenType.MOD => new BinaryExpr(null, BinaryExpr.Opcode.Mod, argE[0], argE[1]),
       SimplifyToken.SimplifyTokenType.VAR => ((VarSimplifyToken)T).Old
         ? new OldExpr(null, new IdentifierExpr(null, ((VarSimplifyToken)T).Name))
         : new IdentifierExpr(null, ((VarSimplifyToken)T).Name),
@@ -186,6 +197,7 @@ public class SimplifyToken {
     OPEN_PAREN,
     CLOSE_PAREN,
     AND,
+    OR,
     IFF,
     EQ,
     NEQ,
@@ -200,6 +212,7 @@ public class SimplifyToken {
     FALSE,
     ADD,
     MUL,
+    MOD,
     NOT
   }
 

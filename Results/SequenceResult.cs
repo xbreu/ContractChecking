@@ -35,6 +35,21 @@ public class SequenceResult : ICollectionResult {
     return Value.ToPython();
   }
 
+  public string ToDaikonInput() {
+    var result = new StringBuilder();
+    result.Append("[ ");
+    foreach (var v in Value) {
+      if (v == null) {
+        result.Append("null ");
+      } else {
+        result.Append($"{v.ToDaikonInput()} ");
+      }
+    }
+
+    result.Append(']');
+    return result.ToString();
+  }
+
   public BooleanResult Prefix(SequenceResult other) {
     // See if the lists are compatible
     var otherL = other.Value;
@@ -74,16 +89,5 @@ public class SequenceResult : ICollectionResult {
     result.Remove(result.Length - 1, 1);
     result += ")";
     return result;
-  }
-  
-  public string ToDaikonInput() {
-    var result = new StringBuilder();
-    result.Append("[ ");
-    foreach (var v in Value) {
-      result.Append($"{v.ToDaikonInput()} ");
-    }
-
-    result.Append(']');
-    return result.ToString();
   }
 }

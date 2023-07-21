@@ -2,13 +2,20 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using DafnyDriver.ContractChecking.Fixes;
 
 namespace Microsoft.Dafny.ContractChecking.Fixes;
 
 public class DaikonTrace {
+  public enum TestResult {
+    FAILING,
+    PASSING,
+    INVALID
+  }
+
   private readonly List<string> declared = new();
   private readonly StringBuilder header = new();
-  private readonly StringBuilder trace = new();
+  public readonly StringBuilder Trace = new();
 
   public DaikonTrace() {
     // File info
@@ -35,6 +42,7 @@ public class DaikonTrace {
         header.Append("\trep-type ");
         header.AppendLine(f.Type.ToString() switch {
           "int" => "int",
+          "real" => "double",
           _ => "hashcode"
         });
         var comp = f.Type.ToString() switch {
@@ -44,6 +52,12 @@ public class DaikonTrace {
         };
         header.AppendLine($"\tcomparability {comp}");
       }
+      
+      header.AppendLine("variable pre_condition");
+      header.AppendLine("\tvar-kind variable");
+      header.AppendLine("\tdec-type boolean");
+      header.AppendLine("\trep-type boolean");
+      header.AppendLine("\tcomparability 1");
 
       if (type == "EXIT00") {
         foreach (var f in m.Outs) {
@@ -53,6 +67,7 @@ public class DaikonTrace {
           header.Append("\trep-type ");
           header.AppendLine(f.Type.ToString() switch {
             "int" => "int",
+            "real" => "double",
             _ => "hashcode"
           });
           var comp = f.Type.ToString() switch {
@@ -62,100 +77,112 @@ public class DaikonTrace {
           };
           header.AppendLine($"\tcomparability {comp}");
         }
-      }
-
-      if (type == "ENTER") {
-        header.AppendLine("variable pre_condition");
-        header.AppendLine("\tvar-kind variable");
-        header.AppendLine("\tdec-type boolean");
-        header.AppendLine("\trep-type boolean");
-        header.AppendLine("\tcomparability 1");
-      } else {
-        header.AppendLine("variable pre_condition");
-        header.AppendLine("\tvar-kind variable");
-        header.AppendLine("\tdec-type boolean");
-        header.AppendLine("\trep-type boolean");
-        header.AppendLine("\tcomparability 1");
+        
         header.AppendLine("variable post_condition");
         header.AppendLine("\tvar-kind variable");
         header.AppendLine("\tdec-type boolean");
         header.AppendLine("\trep-type boolean");
         header.AppendLine("\tcomparability 1");
+        header.AppendLine("variable passed_all_inside");
+        header.AppendLine("\tvar-kind variable");
+        header.AppendLine("\tdec-type boolean");
+        header.AppendLine("\trep-type boolean");
+        header.AppendLine("\tcomparability 1");
       }
+
       header.AppendLine();
     }
   }
 
-  public bool AddPoint(Method m, string nonce, SequenceResult args, bool enter, Program program, DafnyOptions opts) {
-    // Build two expressions representing the method's contract
-    Expression req = new LiteralExpr(null, true);
-    Expression ens = new LiteralExpr(null, true);
-    req = m.Req.Aggregate(req, (current, e) => new BinaryExpr(null, BinaryExpr.Opcode.And, current, e.E));
-    ens = m.Ens.Aggregate(ens, (current, e) => new BinaryExpr(null, BinaryExpr.Opcode.And, current, e.E));
-    return AddPoint(m, nonce, args, enter, program, opts, req, ens);
-  }
+  public TestResult AddPoint(Method method, string nonce, SequenceResult parameters, ContractType place,
+    ContractManager contractManager) {
+    var name = $"{GetModuleName(method)}.{GetClassName(method)}.{method.Name}";
 
-  public bool AddPoint(Method m, string nonce, SequenceResult args, bool enter, Program program, DafnyOptions opts,
-    Expression req, Expression ens) {
-    var name = $"{GetModuleName(m)}.{GetClassName(m)}.{m.Name}";
-    
+    // If the method is in the trace it needs to be on the Daikon method declaration module
     if (!declared.Contains(name)) {
-      AddMethod(m);
+      AddMethod(method);
     }
 
-    trace.Append($"{name}():::");
-    trace.AppendLine(enter ? "ENTER" : "EXIT00");
-    trace.AppendLine("this_invocation_nonce");
-    trace.AppendLine(nonce);
-    var arguments = m.Ins.Select(x => x.CompileName);
-    var returns = m.Outs.Select(x => x.CompileName);
+    // Information about the point
+    Trace.Append($"{name}():::");
+    Trace.AppendLine(place == ContractType.PRE_CONDITION ? "ENTER" : "EXIT00");
+    Trace.AppendLine("this_invocation_nonce");
+    Trace.AppendLine(nonce);
+
+    // We need to create a mapping of the current variables
+    var variableMapping = new Dictionary<string, IResult>();
+    var context = new Context(null, variableMapping);
+    var evaluator = new Evaluator();
     var i = 0;
-    var contextD = new Dictionary<string, IResult>();
-    foreach (var arg in arguments) {
-      var val = args.At(i++);
-      contextD.Add(arg, val);
-      trace.AppendLine(arg);
-      trace.AppendLine(val.ToDaikonInput());
-      trace.AppendLine("0");
+
+    // Map the parameters to their argument name
+    var methodArgumentNames = method.Ins.Select(x => x.CompileName).ToList();
+    for (; i < methodArgumentNames.Count; i++) {
+      var argumentName = methodArgumentNames[i];
+      var concreteValue = parameters.At(i);
+      variableMapping.Add(argumentName, concreteValue);
+      // Add to trace file
+      Trace.AppendLine(argumentName);
+      Trace.AppendLine(concreteValue.ToDaikonInput());
+      Trace.AppendLine("0");
     }
 
-    if (!enter) {
-      foreach (var arg in returns) {
-        var val = args.At(i++);
-        contextD.Add(arg, val);
-        trace.AppendLine(arg);
-        trace.AppendLine(val.ToDaikonInput());
-        trace.AppendLine("0");
+    // Pre-condition
+    var followsPreCondition = (BooleanResult)evaluator.Evaluate(
+      contractManager.GetContract(method, ContractType.PRE_CONDITION),
+      context);
+    Trace.AppendLine("pre_condition");
+    Trace.AppendLine(followsPreCondition ? "1" : "0");
+    Trace.AppendLine("0");
+
+    // No more information to be reported
+    var invalidTest = !followsPreCondition && method == FixConfiguration.GetOuter();
+    if (place == ContractType.PRE_CONDITION) {
+      if (invalidTest) {
+        return TestResult.INVALID;
       }
+
+      return followsPreCondition ? TestResult.PASSING : TestResult.FAILING;
     }
 
-    var context = new Context(null, contextD);
-    var eval = new Evaluator(program, opts);
-    var passedPre = (BooleanResult)eval.Evaluate(req, context);
-    trace.AppendLine("pre_condition");
-    trace.AppendLine(passedPre ? "1" : "0");
-    trace.AppendLine("0");
+    // If we are analysing the exit-point, we need to map the output as well
+    var nullValue = parameters.At(i) == null; // Exception occured when running the test
 
-    // TODO: ignore pre-condition?
-    var passedAll = new BooleanResult(true);
-    
-    if (!enter) {
-      var passedPost = (BooleanResult)eval.Evaluate(ens, context);
-      trace.AppendLine("post_condition");
-      trace.AppendLine(passedPost ? "1" : "0");
-      trace.AppendLine("0");
-      passedAll = passedPre.Imp(passedPost);
-      if (!passedAll) {
-        Console.Write($"Failed ({ens}) with ");
-        foreach (var (n, val) in context.Arguments) {
-          Console.Write($"{n} = {val} ");
-        }
-        Console.WriteLine();
+    // Add the outputs to the context
+    var methodOutputNames = method.Outs.Select(x => x.CompileName).ToList();
+    foreach (var outputName in methodOutputNames) {
+      string daikonVariableValue;
+      // If the return is null, we add a dummy '0' to the trace
+      if (!nullValue) {
+        var concreteValue = parameters.At(i++);
+        variableMapping.Add(outputName, concreteValue);
+        daikonVariableValue = concreteValue.ToDaikonInput();
+      } else {
+        daikonVariableValue = "0";
       }
+
+      // Add to trace file
+      Trace.AppendLine(outputName);
+      Trace.AppendLine(daikonVariableValue);
+      Trace.AppendLine("0");
     }
-    
-    trace.AppendLine();
-    return passedAll.Value;
+
+    // Post-condition
+    var followsPostCondition = nullValue
+      ? false
+      : (BooleanResult)evaluator.Evaluate(
+        contractManager.GetContract(method, ContractType.POST_CONDITION),
+        context);
+    Trace.AppendLine("post_condition");
+    Trace.AppendLine(followsPostCondition ? "1" : "0");
+    Trace.AppendLine("0");
+
+    if (invalidTest) {
+      return TestResult.INVALID;
+    }
+
+    var followsContract = followsPreCondition.And(followsPostCondition);
+    return followsContract ? TestResult.PASSING : TestResult.FAILING;
   }
 
   public static string GetModuleName(MemberDecl method) {
@@ -192,7 +219,13 @@ public class DaikonTrace {
 
   public override string ToString() {
     header.AppendLine();
-    header.Append(trace);
+    header.Append(Trace);
     return header.ToString();
+  }
+
+  public void AddContractVariable(bool passedAllInside) {
+    Trace.AppendLine("passed_all_inside");
+    Trace.AppendLine(passedAllInside ? "1" : "0");
+    Trace.AppendLine("0");
   }
 }
