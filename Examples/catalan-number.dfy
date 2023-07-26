@@ -12,3 +12,7 @@ method NthCatalanNumber(n : int) returns (r : real)
     r := t / s * p;
   }
 }
+
+// Found 2 fixes
+// requires n >= 0
+// requires !(n <= -1)
