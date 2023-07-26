@@ -17,3 +17,11 @@ method HarmonicSum(n : int) returns (r : int)
   var n1 := NthHarmonic(n + 1);
   r := n0 + n1;
 }
+
+// Found 4 fixes
+// NthHarmonic:
+// requires x >= 0
+// requires !(x <= -1)
+// HarmonicSum:
+// requires n >= 1
+// requires !(n <= 0)
