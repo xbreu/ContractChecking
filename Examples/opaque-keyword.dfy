@@ -8,3 +8,6 @@ method Enter(x : int)
   ensures F(x)
 {
 }
+
+// Expected but did not find 1 fix
+// requires 0 <= x < 100
