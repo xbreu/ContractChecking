@@ -1,13 +1,14 @@
 // Created example
 
 method NthHarmonic(x : int) returns (c : int)
+  // Calculates the nth harmonic term, equivalent
+  // to the reciprocal of 1 / (x + 1)
   requires x >= 1
 {
-  c := 1;
   if x < 0 {
-    c := -1;
+    return 1 / 0;
   }
-  return 1 / (c + 1);
+  return 1 / (x + 1);
 }
 
 method HarmonicSum(n : int) returns (r : int)
