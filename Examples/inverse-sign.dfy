@@ -16,7 +16,7 @@ function sign(x : int) : int
 }
 
 method div(x : int, y : int) returns (d : int)
-  requires y != 0
+  // requires y != 0
 {
   var s := sign(y);
   var inv := inverse(s);
@@ -24,7 +24,6 @@ method div(x : int, y : int) returns (d : int)
 }
 
 method Enter(x : int)
-  requires -x != 0
 {
   var r := div(1, x);
 }
