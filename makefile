@@ -1,15 +1,7 @@
-all: dafny z3 plugin
+all: dafny plugin
 
 dafny:
 	make -C ../dafny/
-
-z3:
-	cd ../z3
-	mkdir build
-	cd build
-	cmake -G "Unix Makefiles" ../
-	make -j4
-	cd ../Plugin
 
 plugin:
 	rm -f Plugin.dll
