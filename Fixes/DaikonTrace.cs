@@ -15,9 +15,15 @@ public class DaikonTrace {
 
   private readonly List<string> declared = new();
   private readonly StringBuilder header = new();
+  private readonly bool ignoreString;
   public readonly StringBuilder Trace = new();
 
-  public DaikonTrace() {
+  public DaikonTrace(bool ignoreString) {
+    this.ignoreString = ignoreString;
+    if (this.ignoreString) {
+      return;
+    }
+
     // File info
     header.AppendLine("decl-version 2.0");
     header.AppendLine("input-language Dafny");
@@ -25,6 +31,10 @@ public class DaikonTrace {
   }
 
   private void AddMethod(Method m) {
+    if (ignoreString) {
+      return;
+    }
+
     var name = $"{GetModuleName(m)}.{GetClassName(m)}.{m.Name}";
     declared.Add(name);
     foreach (var type in new List<string> { "ENTER", "EXIT00" }) {
@@ -37,22 +47,29 @@ public class DaikonTrace {
 
       foreach (var f in m.Ins) {
         header.AppendLine($"variable {f.CompileName}");
-        header.AppendLine("\tvar-kind variable");
-        header.AppendLine($"\tdec-type {f.Type}");
+        if (f.Type.ToString() == "seq<int>") {
+          header.AppendLine("\tvar-kind variable");
+          header.AppendLine($"\tdec-type int[..]");
+        } else {
+          header.AppendLine("\tvar-kind variable");
+          header.AppendLine($"\tdec-type {f.Type}");
+        }
         header.Append("\trep-type ");
         header.AppendLine(f.Type.ToString() switch {
           "int" => "int",
           "real" => "double",
+          "seq<int>" => "int[..]",
           _ => "hashcode"
         });
         var comp = f.Type.ToString() switch {
           "bool" => 1,
           "int" => 2,
+          "seq<int>" => 3,
           _ => 20
         };
         header.AppendLine($"\tcomparability {comp}");
       }
-      
+
       header.AppendLine("variable pre_condition");
       header.AppendLine("\tvar-kind variable");
       header.AppendLine("\tdec-type boolean");
@@ -68,16 +85,18 @@ public class DaikonTrace {
           header.AppendLine(f.Type.ToString() switch {
             "int" => "int",
             "real" => "double",
+            "seq<int>" => "array",
             _ => "hashcode"
           });
           var comp = f.Type.ToString() switch {
             "bool" => 1,
             "int" => 2,
+            "seq<int>" => 3,
             _ => 20
           };
           header.AppendLine($"\tcomparability {comp}");
         }
-        
+
         header.AppendLine("variable post_condition");
         header.AppendLine("\tvar-kind variable");
         header.AppendLine("\tdec-type boolean");
@@ -96,18 +115,20 @@ public class DaikonTrace {
 
   public TestResult AddPoint(Method method, string nonce, SequenceResult parameters, ContractType place,
     ContractManager contractManager) {
-    var name = $"{GetModuleName(method)}.{GetClassName(method)}.{method.Name}";
+    if (!ignoreString) {
+      var name = $"{GetModuleName(method)}.{GetClassName(method)}.{method.Name}";
 
-    // If the method is in the trace it needs to be on the Daikon method declaration module
-    if (!declared.Contains(name)) {
-      AddMethod(method);
+      // If the method is in the trace it needs to be on the Daikon method declaration module
+      if (!declared.Contains(name)) {
+        AddMethod(method);
+      }
+
+      // Information about the point
+      Trace.Append($"{name}():::");
+      Trace.AppendLine(place == ContractType.PRE_CONDITION ? "ENTER" : "EXIT00");
+      Trace.AppendLine("this_invocation_nonce");
+      Trace.AppendLine(nonce);
     }
-
-    // Information about the point
-    Trace.Append($"{name}():::");
-    Trace.AppendLine(place == ContractType.PRE_CONDITION ? "ENTER" : "EXIT00");
-    Trace.AppendLine("this_invocation_nonce");
-    Trace.AppendLine(nonce);
 
     // We need to create a mapping of the current variables
     var variableMapping = new Dictionary<string, IResult>();
@@ -121,19 +142,23 @@ public class DaikonTrace {
       var argumentName = methodArgumentNames[i];
       var concreteValue = parameters.At(i);
       variableMapping.Add(argumentName, concreteValue);
-      // Add to trace file
-      Trace.AppendLine(argumentName);
-      Trace.AppendLine(concreteValue.ToDaikonInput());
-      Trace.AppendLine("0");
+      if (!ignoreString) {
+        // Add to trace file
+        Trace.AppendLine(argumentName);
+        Trace.AppendLine(concreteValue.ToDaikonInput());
+        Trace.AppendLine("0");
+      }
     }
 
     // Pre-condition
     var followsPreCondition = (BooleanResult)evaluator.Evaluate(
       contractManager.GetContract(method, ContractType.PRE_CONDITION),
       context);
-    Trace.AppendLine("pre_condition");
-    Trace.AppendLine(followsPreCondition ? "1" : "0");
-    Trace.AppendLine("0");
+    if (!ignoreString) {
+      Trace.AppendLine("pre_condition");
+      Trace.AppendLine(followsPreCondition ? "1" : "0");
+      Trace.AppendLine("0");
+    }
 
     // No more information to be reported
     var invalidTest = !followsPreCondition && method == FixConfiguration.GetOuter();
@@ -145,26 +170,33 @@ public class DaikonTrace {
       return followsPreCondition ? TestResult.PASSING : TestResult.FAILING;
     }
 
-    // If we are analysing the exit-point, we need to map the output as well
-    var nullValue = parameters.At(i) == null; // Exception occured when running the test
-
     // Add the outputs to the context
     var methodOutputNames = method.Outs.Select(x => x.CompileName).ToList();
+    var outputs = parameters.At(i) is SequenceResult
+      ? (SequenceResult)parameters.At(i)
+      : new SequenceResult(new List<IResult> { parameters.At(i) });
+
+    // If we are analysing the exit-point, we need to map the output as well
+    var nullValue = parameters.At(i) == null && methodOutputNames.Count > 0; // Exception occured when running the test
+
+    var j = 0;
     foreach (var outputName in methodOutputNames) {
       string daikonVariableValue;
       // If the return is null, we add a dummy '0' to the trace
       if (!nullValue) {
-        var concreteValue = parameters.At(i++);
+        var concreteValue = outputs.At(j++);
         variableMapping.Add(outputName, concreteValue);
         daikonVariableValue = concreteValue.ToDaikonInput();
       } else {
         daikonVariableValue = "0";
       }
 
-      // Add to trace file
-      Trace.AppendLine(outputName);
-      Trace.AppendLine(daikonVariableValue);
-      Trace.AppendLine("0");
+      if (!ignoreString) {
+        // Add to trace file
+        Trace.AppendLine(outputName);
+        Trace.AppendLine(daikonVariableValue);
+        Trace.AppendLine("0");
+      }
     }
 
     // Post-condition
@@ -173,9 +205,11 @@ public class DaikonTrace {
       : (BooleanResult)evaluator.Evaluate(
         contractManager.GetContract(method, ContractType.POST_CONDITION),
         context);
-    Trace.AppendLine("post_condition");
-    Trace.AppendLine(followsPostCondition ? "1" : "0");
-    Trace.AppendLine("0");
+    if (!ignoreString) {
+      Trace.AppendLine("post_condition");
+      Trace.AppendLine(followsPostCondition ? "1" : "0");
+      Trace.AppendLine("0");
+    }
 
     if (invalidTest) {
       return TestResult.INVALID;

@@ -22,6 +22,8 @@ public abstract class ATableResult<T> : ICollectionResult {
 
   public abstract object ToPythonObject();
   public abstract string ToDaikonInput();
+  
+  public abstract string ToPythonInput();
 
   protected abstract bool AreDifferent(T left, T right);
 

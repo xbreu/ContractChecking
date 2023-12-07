@@ -31,6 +31,10 @@ internal class LambdaResult : IResult {
     throw new System.NotImplementedException();
   }
 
+  public string ToPythonInput() {
+    throw new System.NotImplementedException();
+  }
+
   public IResult Evaluate(Context ctx) {
     return new Evaluator().Evaluate(body, closure.Merge(ctx));
   }

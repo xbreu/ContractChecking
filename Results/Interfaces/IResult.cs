@@ -11,6 +11,8 @@ public interface IResult {
   public object ToPythonObject();
 
   public string ToDaikonInput();
+  
+  public string ToPythonInput();
 
   public BooleanResult Neq(IResult other) {
     return !Eq(other);

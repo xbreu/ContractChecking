@@ -60,6 +60,9 @@ public class Evaluator {
 
         return new SequenceResult(result);
       }
+      case ForallExpr expr: {
+        return null;
+      }
       // Object expressions
       case ThisExpr: {
         // TODO
@@ -243,6 +246,8 @@ public class Evaluator {
       case SetComprehension:
         break;
       case MapComprehension:
+        break;
+      case ExistsExpr:
         break;
       case DatatypeValue:
         break;

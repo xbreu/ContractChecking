@@ -30,6 +30,10 @@ public class MapResult : ATableResult<IResult> {
     return result.ToString();
   }
 
+  public override string ToPythonInput() {
+    throw new System.NotImplementedException();
+  }
+
   protected override bool AreDifferent(IResult left, IResult right) {
     return left.IsDifferent(right);
   }

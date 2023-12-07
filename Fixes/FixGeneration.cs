@@ -9,38 +9,49 @@ using DafnyDriver.ContractChecking.Fixes;
 namespace Microsoft.Dafny.ContractChecking.Fixes;
 
 public class FixGeneration {
+  private RuntimePhase currentPhase = RuntimePhase.WEAKENING;
   private Stopwatch sw;
 
-  public List<(Method, ContractType, Expression)> PassingFailingInvariants(
+  private List<(Method, ContractType, Expression)> PassingFailingInvariants(
     List<(string, ContractType, Expression)> invariants, bool strengthening = false) {
     var iP = new List<(Method, ContractType, Expression)>();
     var iF = new List<(Method, ContractType, Expression)>();
-    var passingString = strengthening ? "passed_all_inside" : "post_condition";
+    var passingStrings = new HashSet<string> { "post_condition" };
+    if (strengthening) {
+      passingStrings.Add("passed_all_inside");
+    }
 
-    foreach (var (methodName, enter, e) in invariants) {
-      if (e is BinaryExpr { Op: BinaryExpr.Opcode.Iff } be) {
+    foreach (var (methodName, _, e) in invariants) {
+      if (e is BinaryExpr { Op : BinaryExpr.Opcode.Eq, E0: IdentifierExpr lhs, E1: IdentifierExpr rhs }) {
+        var m = ContractChecker.FindMethod(methodName);
+        if ((Expression.IsBoolLiteral(rhs, out var _) && passingStrings.Contains(lhs.Name)) ||
+            lhs.Name == "pre_condition") {
+          iP.Add((m, strengthening ? ContractType.PRE_CONDITION : ContractType.POST_CONDITION,
+            new LiteralExpr(null, true)));
+        }
+      } else if (e is BinaryExpr { Op: BinaryExpr.Opcode.Iff } be) {
         var m = ContractChecker.FindMethod(methodName);
 
         if (be.E0 is BinaryExpr { Op : BinaryExpr.Opcode.Eq, E0: IdentifierExpr e00 } eq0 &&
-            e00.Name == passingString) {
+            passingStrings.Contains(e00.Name)) {
           Expression.IsBoolLiteral(eq0.E1, out var val);
           (val ? iP : iF).Add((m, strengthening ? ContractType.PRE_CONDITION : ContractType.POST_CONDITION, be.E1));
         }
 
         if (be.E0 is BinaryExpr { Op : BinaryExpr.Opcode.Neq, E0: IdentifierExpr e01 } neq0 &&
-            e01.Name == passingString) {
+            passingStrings.Contains(e01.Name)) {
           Expression.IsBoolLiteral(neq0.E1, out var val);
           (val ? iF : iP).Add((m, strengthening ? ContractType.PRE_CONDITION : ContractType.POST_CONDITION, be.E1));
         }
 
         if (be.E1 is BinaryExpr { Op : BinaryExpr.Opcode.Eq, E0: IdentifierExpr e02 } eq1 &&
-            e02.Name == passingString) {
+            passingStrings.Contains(e02.Name)) {
           Expression.IsBoolLiteral(eq1.E1, out var val);
           (val ? iP : iF).Add((m, strengthening ? ContractType.PRE_CONDITION : ContractType.POST_CONDITION, be.E0));
         }
 
         if (be.E1 is BinaryExpr { Op : BinaryExpr.Opcode.Neq, E0: IdentifierExpr e03 } neq12 &&
-            e03.Name == passingString) {
+            passingStrings.Contains(e03.Name)) {
           Expression.IsBoolLiteral(neq12.E1, out var val);
           (val ? iF : iP).Add((m, strengthening ? ContractType.PRE_CONDITION : ContractType.POST_CONDITION, be.E0));
         }
@@ -79,17 +90,13 @@ public class FixGeneration {
   }
 
   public async Task<(List<ContractManager>, List<ContractManager>)> Weakening(SequenceResult trace) {
+    currentPhase = RuntimePhase.WEAKENING;
+
     // Determine invariants of passing and failing test cases
-    sw = Stopwatch.StartNew();
     var contractManager = new ContractManager();
     contractManager.Relax(FixConfiguration.GetGoal());
-    var (_, invariants) = await GetInvariants(trace, contractManager);
-
-    if (FixConfiguration.ShouldDebug(DebugInformation.ACTION_RUNTIMES)) {
-      Console.WriteLine($"\t\t{sw.ElapsedMilliseconds,6:D} ms to get invariants from Daikon");
-      sw.Stop();
-      sw = Stopwatch.StartNew();
-    }
+    var (_, invariants, _) = await GetInvariants(trace, contractManager);
+    sw = Stopwatch.StartNew();
 
     var iP = PassingFailingInvariants(invariants);
     // Remove invariants that use outputs on the pre-condition and invariants for other methods
@@ -101,16 +108,21 @@ public class FixGeneration {
         .ToList();
     }
 
+    if (FixConfiguration.ShouldDebug(DebugInformation.EXECUTION_COUNTS)) {
+      Console.WriteLine($"R# {iP.Count}");
+    }
+
     if (FixConfiguration.ShouldDebug(DebugInformation.ACTION_RUNTIMES)) {
-      Console.WriteLine($"\t\t{sw.ElapsedMilliseconds,6:D} ms to filter invariants");
+      FixConfiguration.AddTime(RuntimeActionType.FILTER_WEAKENING_INVARIANTS, sw.ElapsedMilliseconds);
       sw.Stop();
     }
 
-    Console.WriteLine("\nPassing tests have the following invariants:");
-    foreach (var (m, enter, e) in iP) {
-      Console.Write(enter);
-      Console.Write($" of {m.Name} : ");
-      Console.WriteLine(e);
+    if (FixConfiguration.ShouldDebug(DebugInformation.INVARIANTS)) {
+      foreach (var (m, enter, e) in iP) {
+        Console.Write(enter);
+        Console.Write($" of {m.Name} : ");
+        Console.WriteLine(e);
+      }
     }
 
     sw = Stopwatch.StartNew();
@@ -127,11 +139,9 @@ public class FixGeneration {
     }
 
     if (FixConfiguration.ShouldDebug(DebugInformation.ACTION_RUNTIMES)) {
-      Console.WriteLine($"\t\t{sw.ElapsedMilliseconds,6:D} ms to create candidate weakening fixes");
+      FixConfiguration.AddTime(RuntimeActionType.CREATE_WEAKENING_FIXES, sw.ElapsedMilliseconds);
       sw.Stop();
     }
-
-    Console.WriteLine("\nValid pure weakening fixes:\n");
 
     if (FixConfiguration.ShouldDebug(DebugInformation.ACTION_RUNTIMES)) {
       sw = Stopwatch.StartNew();
@@ -141,12 +151,18 @@ public class FixGeneration {
     var phi = allValidations[true].ToList();
     var w = allValidations[false].ToList();
     if (FixConfiguration.ShouldDebug(DebugInformation.ACTION_RUNTIMES)) {
-      Console.WriteLine($"\t\t{sw.ElapsedMilliseconds,6:D} ms to validate those candidates");
+      FixConfiguration.AddTime(RuntimeActionType.VALIDATE_WEAKENING_FIXES, sw.ElapsedMilliseconds);
       sw.Stop();
     }
 
-    foreach (var newContracts in phi) {
-      Console.WriteLine(newContracts);
+    if (FixConfiguration.ShouldDebug(DebugInformation.EXECUTION_COUNTS)) {
+      Console.WriteLine($"W# {phi.Count}");
+    }
+
+    if (FixConfiguration.ShouldDebug(DebugInformation.FIXES)) {
+      foreach (var newContracts in phi) {
+        Console.WriteLine(newContracts);
+      }
     }
 
     return (phi, w);
@@ -159,38 +175,59 @@ public class FixGeneration {
     };
   }
 
-  public (bool, string) GenerateDaikonInput(SequenceResult trace, ContractManager contractManager) {
-    var input = new DaikonTrace();
+  private static (bool, string, HashSet<Method>) GenerateDaikonInput(SequenceResult trace,
+    ContractManager contractManager, bool ignoreString = false) {
+    var input = new DaikonTrace(ignoreString);
     var passedAll = true;
 
     // Trace
-    var processedEnterPoint = new List<string>();
+    var processedEnterPoint = new HashSet<string>();
     var currentInvalid = false;
+    var passedBeforeFaulty = new HashSet<Method>();
+    var passedByFaulty = false;
     var currentOuterNonce = "";
     var passedAllInside = new Dictionary<string, bool>();
     foreach (var val in trace.Value) {
       var name = (StringResult)((SequenceResult)val).At(0);
       var nonce = ((IntegerResult)((SequenceResult)val).At(1)).Value.ToString();
-      var parameters = (SequenceResult)((SequenceResult)val).At(2);
-      var method = ContractChecker.FindMethod(name.Value.Trim('\''));
-      var place = processedEnterPoint.Contains(nonce) ? ContractType.POST_CONDITION : ContractType.PRE_CONDITION;
-      var testResult = input.AddPoint(method, nonce, parameters, place, contractManager);
 
-      if (place == ContractType.PRE_CONDITION) {
-        processedEnterPoint.Add(nonce);
-        passedAllInside[nonce] = testResult == DaikonTrace.TestResult.PASSING;
-        if (!passedAllInside[nonce]) {
-          foreach (var k in passedAllInside.Keys) {
-            passedAllInside[k] = false;
+      DaikonTrace.TestResult testResult;
+      if (!ignoreString || !currentInvalid) {
+        var parameters = (SequenceResult)((SequenceResult)val).At(2);
+        var method = ContractChecker.FindMethod(name.Value.Trim('\''));
+        var place = processedEnterPoint.Contains(nonce) ? ContractType.POST_CONDITION : ContractType.PRE_CONDITION;
+        testResult = input.AddPoint(method, nonce, parameters, place, contractManager);
+
+        if (!passedByFaulty) {
+          if (method == FixConfiguration.GetFaultyRoutine()) {
+            passedByFaulty = true;
+          } else {
+            passedBeforeFaulty.Add(method);
           }
         }
-      } else {
-        processedEnterPoint.Remove(nonce);
-        input.AddContractVariable(passedAllInside[nonce]);
-        passedAllInside.Remove(nonce);
-      }
 
-      input.Trace.AppendLine();
+        if (place == ContractType.PRE_CONDITION) {
+          processedEnterPoint.Add(nonce);
+          passedAllInside[nonce] = testResult == DaikonTrace.TestResult.PASSING;
+          if (!passedAllInside[nonce]) {
+            foreach (var k in passedAllInside.Keys) {
+              passedAllInside[k] = false;
+            }
+          }
+        } else {
+          processedEnterPoint.Remove(nonce);
+          input.AddContractVariable(passedAllInside[nonce]);
+          passedAllInside.Remove(nonce);
+        }
+
+        input.Trace.AppendLine();
+      } else {
+        if (currentOuterNonce == nonce) {
+          currentInvalid = false;
+        }
+
+        continue;
+      }
 
       if (currentInvalid) {
         if (currentOuterNonce == nonce) {
@@ -209,28 +246,24 @@ public class FixGeneration {
       passedAll = passedAll && testResult == DaikonTrace.TestResult.PASSING;
     }
 
-    return (passedAll, input.ToString());
+    return (passedAll, input.ToString(), passedBeforeFaulty);
   }
 
-  public bool ValidateFix(SequenceResult trace, ContractManager contractManager) {
-    var (passed, _) = GenerateDaikonInput(trace, contractManager);
+  private static bool ValidateFix(SequenceResult trace, ContractManager contractManager) {
+    var (passed, _, _) = GenerateDaikonInput(trace, contractManager, true);
     return passed;
   }
 
-  private async Task<(bool passed, List<(string, ContractType, Expression)> parsedOutput)> GetInvariants(
-    SequenceResult trace,
-    ContractManager contractManager) {
+  private async
+    Task<(bool passed, List<(string, ContractType, Expression)> parsedOutput, HashSet<Method> previousRoutines)>
+    GetInvariants(
+      SequenceResult trace,
+      ContractManager contractManager) {
     if (FixConfiguration.ShouldDebug(DebugInformation.ACTION_RUNTIMES)) {
       sw = Stopwatch.StartNew();
     }
 
-    var (passed, daikonInput) = GenerateDaikonInput(trace, contractManager);
-    if (FixConfiguration.ShouldDebug(DebugInformation.ACTION_RUNTIMES)) {
-      Console.WriteLine($"\t\t\t{sw.ElapsedMilliseconds,6:D} ms to generate Daikon input");
-      sw.Stop();
-
-      sw = Stopwatch.StartNew();
-    }
+    var (passed, daikonInput, previousRoutines) = GenerateDaikonInput(trace, contractManager);
 
     // Write Daikon configuration
     await DaikonConfiguration.WriteFiles();
@@ -241,7 +274,7 @@ public class FixGeneration {
     }
 
     if (FixConfiguration.ShouldDebug(DebugInformation.ACTION_RUNTIMES)) {
-      Console.WriteLine($"\t\t\t{sw.ElapsedMilliseconds,6:D} ms to write Daikon input files");
+      FixConfiguration.AddTime(currentPhase, RuntimePhaseActionType.GENERATE_DAIKON_INPUT, sw.ElapsedMilliseconds);
       sw.Stop();
 
       sw = Stopwatch.StartNew();
@@ -259,7 +292,7 @@ public class FixGeneration {
     ArgumentNullException.ThrowIfNull(proc);
     var daikonOutput = proc.StandardOutput.ReadToEnd();
     if (FixConfiguration.ShouldDebug(DebugInformation.ACTION_RUNTIMES)) {
-      Console.WriteLine($"\t\t\t{sw.ElapsedMilliseconds,6:D} ms to run and read the output of Daikon");
+      FixConfiguration.AddTime(currentPhase, RuntimePhaseActionType.RUN_DAIKON, sw.ElapsedMilliseconds);
       sw.Stop();
 
       sw = Stopwatch.StartNew();
@@ -269,45 +302,53 @@ public class FixGeneration {
       await writer.WriteAsync(daikonOutput);
     }
 
-    if (FixConfiguration.ShouldDebug(DebugInformation.ACTION_RUNTIMES)) {
-      Console.WriteLine($"\t\t\t{sw.ElapsedMilliseconds,6:D} ms to save the Daikon output in a file");
-      sw.Stop();
-
-      sw = Stopwatch.StartNew();
-    }
-
     var parsedOutput = InvariantParser.ParseDaikonOutput(daikonOutput);
     if (FixConfiguration.ShouldDebug(DebugInformation.ACTION_RUNTIMES)) {
-      Console.WriteLine($"\t\t\t{sw.ElapsedMilliseconds,6:D} ms to parse Daikon output");
+      FixConfiguration.AddTime(currentPhase, RuntimePhaseActionType.PARSE_DAIKON, sw.ElapsedMilliseconds);
       sw.Stop();
     }
 
-    return (passed, parsedOutput);
+    return (passed, parsedOutput, previousRoutines);
   }
 
   public async Task<List<ContractManager>> Strengthening(SequenceResult trace, List<ContractManager> w) {
+    currentPhase = RuntimePhase.STRENGTHENING;
     var phi = new List<ContractManager>();
 
+    if (FixConfiguration.ShouldDebug(DebugInformation.EXECUTION_COUNTS)) {
+      Console.WriteLine($"Rx {w.Count}");
+    }
+
     foreach (var f in w) {
+      var (_, invariants, passedBeforeFaulty) = await GetInvariants(trace, f);
       if (FixConfiguration.ShouldDebug(DebugInformation.ACTION_RUNTIMES)) {
         sw = Stopwatch.StartNew();
       }
 
-      var (_, invariants) = await GetInvariants(trace, f);
-      if (FixConfiguration.ShouldDebug(DebugInformation.ACTION_RUNTIMES)) {
-        Console.WriteLine($"\t\t{sw.ElapsedMilliseconds,6:D} ms to get invariants from Daikon");
-        sw.Stop();
-
-        sw = Stopwatch.StartNew();
+      if (FixConfiguration.GetFaultyRoutine() == FixConfiguration.GetOuter()) {
+        passedBeforeFaulty.Add(FixConfiguration.GetOuter());
       }
 
       var iP = PassingFailingInvariants(invariants, true);
-      iP = iP.Where(m => !ContainsVariable(m.Item3, m.Item1.Outs.Select(x => x.Name))).ToList();
+      iP = iP.Where(m =>
+          passedBeforeFaulty.Contains(m.Item1) &&
+          !ContainsVariable(m.Item3, m.Item1.Outs.Select(x => x.Name)))
+        .ToList();
       if (FixConfiguration.ShouldDebug(DebugInformation.ACTION_RUNTIMES)) {
-        Console.WriteLine($"\t\t{sw.ElapsedMilliseconds,6:D} ms to filter invariants");
+        FixConfiguration.AddTime(RuntimeActionType.FILTER_STRENGTHENING_INVARIANTS, sw.ElapsedMilliseconds);
         sw.Stop();
 
         sw = Stopwatch.StartNew();
+      }
+
+      if (FixConfiguration.ShouldDebug(DebugInformation.EXECUTION_COUNTS)) {
+        Console.WriteLine($"R# {iP.Count}");
+      }
+
+      if (FixConfiguration.ShouldDebug(DebugInformation.INVARIANTS)) {
+        foreach (var inv in iP) {
+          Console.WriteLine(inv);
+        }
       }
 
       // Catalog the invariants per method
@@ -315,7 +356,6 @@ public class FixGeneration {
       foreach (var (method, _, invariant) in iP) {
         if (!invariantsPerMethod.ContainsKey(method)) {
           invariantsPerMethod.Add(method, new List<Expression>());
-          invariantsPerMethod[method].Add(new LiteralExpr(null, true));
         }
 
         invariantsPerMethod[method].Add(invariant);
@@ -334,6 +374,10 @@ public class FixGeneration {
         allCombinations = allCombinationsEnum.ToList();
       }
 
+      if (FixConfiguration.ShouldDebug(DebugInformation.EXECUTION_COUNTS)) {
+        Console.WriteLine($"C# {allCombinations.Count}");
+      }
+
       foreach (var combination in allCombinations) {
         var newContracts = f.Copy();
 
@@ -346,8 +390,7 @@ public class FixGeneration {
       }
 
       if (FixConfiguration.ShouldDebug(DebugInformation.ACTION_RUNTIMES)) {
-        Console.WriteLine($"\t\t{sw.ElapsedMilliseconds,6:D} ms to create candidate strengthening fixes");
-
+        FixConfiguration.AddTime(RuntimeActionType.CREATE_STRENGTHENING_FIXES, sw.ElapsedMilliseconds);
         sw.Stop();
       }
     }
@@ -356,19 +399,27 @@ public class FixGeneration {
       sw = Stopwatch.StartNew();
     }
 
-    Console.WriteLine("Valid fixes with strengthening:");
     var passedCandidates = new List<ContractManager>();
     foreach (var candidate in phi) {
       var passed = ValidateFix(trace, candidate);
       if (passed) {
-        Console.WriteLine("\tFix:");
-        Console.WriteLine(candidate);
         passedCandidates.Add(candidate);
       }
     }
 
+    if (FixConfiguration.ShouldDebug(DebugInformation.EXECUTION_COUNTS)) {
+      Console.WriteLine($"S# {passedCandidates.Count}");
+    }
+
+    if (FixConfiguration.ShouldDebug(DebugInformation.FIXES)) {
+      foreach (var validated in passedCandidates) {
+        Console.WriteLine(validated);
+        Console.WriteLine();
+      }
+    }
+
     if (FixConfiguration.ShouldDebug(DebugInformation.ACTION_RUNTIMES)) {
-      Console.WriteLine($"\t\t{sw.ElapsedMilliseconds,6:D} ms to validate those candidates");
+      FixConfiguration.AddTime(RuntimeActionType.VALIDATE_STRENGTHENING_FIXES, sw.ElapsedMilliseconds);
 
       sw.Stop();
     }

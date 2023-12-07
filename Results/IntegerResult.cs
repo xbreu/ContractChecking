@@ -25,6 +25,10 @@ public class IntegerResult : INumericResult {
   public string ToDaikonInput() {
     return Value.ToString();
   }
+  
+  public string ToPythonInput() {
+    return Value.ToString();
+  }
 
   public BooleanResult Lt(IOrderableResult other) {
     return Value < ((IntegerResult)other).Value;

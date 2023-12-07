@@ -21,6 +21,10 @@ public class BooleanResult : IResult {
     return this ? "1" : "0";
   }
 
+  public string ToPythonInput() {
+    return this ? "True" : "False";
+  }
+
   public static implicit operator BooleanResult(bool b) {
     return new BooleanResult(b);
   }

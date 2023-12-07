@@ -55,4 +55,8 @@ public class RealResult : INumericResult {
   public string ToDaikonInput() {
     return value.ToDecimalString();
   }
+
+  public string ToPythonInput() {
+    return value.ToDecimalString();
+  }
 }

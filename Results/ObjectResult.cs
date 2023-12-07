@@ -56,4 +56,8 @@ public class ObjectResult : IResult {
   public string ToDaikonInput() {
     throw new InvalidOperationException();
   }
+
+  public string ToPythonInput() {
+    throw new NotImplementedException();
+  }
 }

@@ -1,6 +1,6 @@
 // Created example
 
-method NthHarmonic(x : int) returns (c : int)
+method NthHarmonicTerm(x : int) returns (c : int)
   // Calculates the nth harmonic term, equivalent
   // to the reciprocal of 1 / (x + 1)
   requires x >= 1
@@ -11,18 +11,14 @@ method NthHarmonic(x : int) returns (c : int)
   return 1 / (x + 1);
 }
 
-method HarmonicSum(n : int) returns (r : int)
+method NthHarmonicNumber(n : int) returns (sum : int)
   requires n >= 0
 {
-  var n0 := NthHarmonic(n);
-  var n1 := NthHarmonic(n + 1);
-  r := n0 + n1;
+  var i := 0;
+  sum := 0;
+  while i < n {
+    var ith := NthHarmonicTerm(i);
+    sum := sum + ith;
+    i := i + 1;
+  }
 }
-
-// Found 4 fixes
-// NthHarmonic:
-// requires x >= 0
-// requires !(x <= -1)
-// HarmonicSum:
-// requires n >= 1
-// requires !(n <= 0)

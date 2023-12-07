@@ -61,7 +61,7 @@ public record ContractManager {
       b.AppendLine($"Change {place} of method {method} to {newContract}");
     }
 
-    return b.ToString();
+    return b.ToString().TrimEnd();
   }
 
   public ContractManager Copy() {

@@ -55,6 +55,21 @@ public class SetResult : IBagResult {
     return result.ToString();
   }
 
+  public string ToPythonInput() {
+    var result = new StringBuilder();
+    result.Append('{');
+    foreach (var v in Value) {
+      if (v == null) {
+        result.Append("None,");
+      } else {
+        result.Append($"{v.ToDaikonInput()},");
+      }
+    }
+
+    result.Append('}');
+    return result.ToString();
+  }
+
   public override string ToString() {
     var result = Value.Aggregate("Set(", (current, item) => current + $"{item},");
     result.Remove(result.Length - 1, 1);

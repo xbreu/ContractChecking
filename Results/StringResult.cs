@@ -22,6 +22,10 @@ public class StringResult : IResult {
     return Value.Trim('\'');
   }
 
+  public string ToPythonInput() {
+    return Value;
+  }
+
   public override string ToString() {
     return $"String({Value})";
   }

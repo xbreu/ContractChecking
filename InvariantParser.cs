@@ -13,6 +13,7 @@ public static class InvariantParser {
 
     var result = new List<(string, ContractType, Expression)>();
 
+    var count = 0;
     foreach (var point in points) {
       var lines = point.Split('\n').ToList();
       var pointName = lines[0];
@@ -25,6 +26,7 @@ public static class InvariantParser {
           break;
         }
 
+        count += 1;
         try {
           result.Add((methodName, enter ? ContractType.PRE_CONDITION : ContractType.POST_CONDITION, ParseInvariant(line)));
         } catch {
@@ -35,6 +37,11 @@ public static class InvariantParser {
       }
     }
 
+    if (FixConfiguration.ShouldDebug(DebugInformation.EXECUTION_COUNTS)) {
+      Console.WriteLine($"I# {count}");
+    }
+
+    // Console.WriteLine($"Parsed {count} invariants");
     return result;
   }
 

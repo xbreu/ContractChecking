@@ -97,6 +97,10 @@ public class MultisetResult : ATableResult<IntegerResult>, IBagResult {
     return result.ToString();
   }
 
+  public override string ToPythonInput() {
+    throw new System.NotImplementedException();
+  }
+
   public IntegerResult Multiplicity(IResult element) {
     Value.TryGetValue(element, out var ret);
     ret ??= IntegerResult.Zero();

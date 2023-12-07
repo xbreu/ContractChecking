@@ -91,50 +91,73 @@ public class ContractChecker {
   }
 
   public async Task CheckProgram(Program program) {
+    FixConfiguration.Instance.Program = program;
+
     Stopwatch total;
     total = Stopwatch.StartNew();
 
-    FixConfiguration.Instance.Program = program;
-
-    Stopwatch sw;
+    Stopwatch sw = null;
     var argumentList = new List<IResult>();
-    for (var i = -10; i < 10; i++) {
+    /*var r = new Random();
+    for (var i = 0; i < 50; ++i) {
+      var length = r.Next(0, 5);
+      var a = new SequenceResult(new List<IResult>());
+      for (var j = 0; j < length; j++) {
+        a = a.Append(new IntegerResult(r.Next(0, 3)));
+      }
+
+      argumentList.Add(a);
+    }*/
+    
+    for (var i = -5; i < 10; i++) {
       argumentList.Add(new IntegerResult(i));
     }
 
     var arguments = (from a in argumentList from b in argumentList select new List<IResult> { a, b }).ToList();
-    const string name = "Enter";
+    const string outerName = "rem";
+    const string faultyName = "divRem";
 
-    sw = Stopwatch.StartNew();
-    var trace = TestMethod(name, arguments);
+    if (FixConfiguration.ShouldDebug(DebugInformation.ACTION_RUNTIMES)) {
+      sw = Stopwatch.StartNew();
+    }
+
+    var trace = TestMethod(outerName, arguments);
     await using (var writer = new StreamWriter("../test/.trace.py")) {
       // TODO: write it in a better way
       await writer.WriteAsync(trace.ToDaikonInput());
     }
-    Console.WriteLine($"{sw.ElapsedMilliseconds,7:D} ms to run {20} tests in Python");
-    sw.Stop();
 
-    sw = Stopwatch.StartNew();
-    var outerMethod = FindMethod("Enter");
-    var faultyMethod = FindMethod("Faulty");
+    if (FixConfiguration.ShouldDebug(DebugInformation.ACTION_RUNTIMES)) {
+      FixConfiguration.AddTime(RuntimeActionType.RUN_TESTS, sw.ElapsedMilliseconds);
+      sw.Stop();
+    }
+
+    if (FixConfiguration.ShouldDebug(DebugInformation.EXECUTION_COUNTS)) {
+      Console.WriteLine($"T# {arguments.Count}");
+    }
+
+    var outerMethod = FindMethod(outerName);
+    var faultyMethod = FindMethod(faultyName);
     FixConfiguration.Instance.Goal = new FixGoal(outerMethod, faultyMethod, ContractType.PRE_CONDITION);
-    Console.WriteLine($"\t{sw.ElapsedMilliseconds,6:D} ms to search for method {name} in the program");
-    sw.Stop();
 
-    var fg = new FixGeneration();
+    for (var k = 0; k < 1; k++) {
+      Console.WriteLine("---------------------------------------------");
+      Console.WriteLine("New run");
+      Console.WriteLine("---------------------------------------------");
+      var fg = new FixGeneration();
+      var (phi, w) = await fg.Weakening(trace);
 
-    sw = Stopwatch.StartNew();
-    var (phi, w) = await fg.Weakening(trace);
-    Console.WriteLine($"\t{sw.ElapsedMilliseconds,6:D} ms to generate weakening fixes");
-    sw.Stop();
+      // System.Environment.Exit(0);
 
-    sw = Stopwatch.StartNew();
-    var fixes = await fg.Strengthening(trace, w);
-    Console.WriteLine($"\t{sw.ElapsedMilliseconds,6:D} ms to generate strengthening fixes");
-    sw.Stop();
+      Console.WriteLine("Strengthening");
 
-    Console.WriteLine($"{total.ElapsedMilliseconds,7:D} ms total runtime");
-    total.Stop();
+      var fixes = await fg.Strengthening(trace, w);
+
+      FixConfiguration.AddTime(RuntimeActionType.ENTIRE_PROGRAM, total.ElapsedMilliseconds);
+      total.Stop();
+    }
+
+    Console.WriteLine(FixConfiguration.Instance.logger);
   }
 
   private static async IAsyncEnumerable<TestMethod> GetTestArguments(Program program) {

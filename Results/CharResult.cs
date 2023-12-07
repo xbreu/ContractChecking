@@ -22,6 +22,10 @@ public class CharResult : IOrderableResult {
     return value;
   }
 
+  public string ToPythonInput() {
+    throw new NotImplementedException();
+  }
+
   public BooleanResult Lt(IOrderableResult other) {
     return false;
   }
