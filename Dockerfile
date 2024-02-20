@@ -29,5 +29,5 @@ COPY . .
 # Compilation
 RUN make -C /dafny-custom/
 # RUN cd /plugin
-RUN dotnet build
+RUN dotnet build Plugin.csproj
 RUN ln -s bin/Debug/net6.0/Plugin.dll .
