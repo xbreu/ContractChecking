@@ -12,7 +12,7 @@ internal static class PythonExecutor {
   private static readonly bool DebugPrint = FixConfiguration.ShouldDebug(DebugInformation.PYTHON_EXECUTIONS);
 
   private static void Initialize() {
-    const string pythonDll = @"/usr/lib/libpython3.11.so";
+    const string pythonDll = @"/usr/lib/python3.10/config-3.10-x86_64-linux-gnu/libpython3.10.so";
     Environment.SetEnvironmentVariable("PYTHONNET_PYDLL", pythonDll);
     PythonEngine.Initialize();
     // PythonEngine.Initialize(Enumerable.Empty<string>(), true, false);
