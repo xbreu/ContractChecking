@@ -16,9 +16,9 @@ namespace ContractFixer {
         {
             Debug.Assert(input.Program != null, "input.Program != null");
             ProcessStartInfo startInfo = new() {
-                  FileName = "/home/me/document/prodei/dafny-custom/Scripts/dafny",
+                  FileName = "/dafny-custom/Scripts/dafny",
                   Arguments =
-                    "/compile:2 /compileTarget:py /home/me/document/prodei/test/test.dfy",
+                    "/compile:2 /compileTarget:py /plugin/test/test.dfy",
                   CreateNoWindow = true,
                   RedirectStandardOutput = true,
                   RedirectStandardError = true

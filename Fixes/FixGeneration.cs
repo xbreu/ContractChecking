@@ -250,7 +250,7 @@ public class FixGeneration {
     ProcessStartInfo startInfo = new() {
       FileName = "java",
       Arguments =
-        "-cp /home/xbreu/Applications/daikon/daikon.jar daikon.Daikon ../test/.trace.dtrace ../test/.trace.spinfo --format Simplify --config ../test/.trace.config",
+        "-cp /daikon/daikon.jar daikon.Daikon /plugin/test/.trace.dtrace /plugin/test/.trace.spinfo --format Simplify --config /plugin/test/.trace.config",
       CreateNoWindow = true,
       RedirectStandardOutput = true,
       RedirectStandardError = true

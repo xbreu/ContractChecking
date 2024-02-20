@@ -1,0 +1,21 @@
+{
+    "workspaceFolder": "/plugin",
+    // Set *default* container specific settings.json values on container create.
+    "customizations": {
+        "vscode": {
+            "settings": {
+                "dafny.automaticVerification": "onsave",
+                "dafny.cliPath": "/dafny-custom/Binaries/Dafny.dll",
+                "dafny.languageServerLaunchArgs": [
+                    "--plugin:/plugin/bin/Debug/net6.0/Plugin.dll"
+                ],
+                "dafny.version": "custom",
+                "terminal.integrated.defaultProfile.linux": "bash"
+            },
+            // Add the IDs of extensions you want installed when the container is created.
+            "extensions": [
+                "dafny-lang.ide-vscode"
+            ]
+        }
+    }
+}

@@ -9,13 +9,6 @@
 
     <ItemGroup>
         <ProjectReference Include="../dafny-custom/Source/DafnyLanguageServer/DafnyLanguageServer.csproj"/>
-        <!--<ProjectReference Include="../pythonnet/src/runtime/Python.Runtime.csproj"/>-->
-    </ItemGroup>
-
-    <ItemGroup>
-        <Reference Include="Python.Runtime, Version=3.1.0.0, Culture=neutral, PublicKeyToken=5000fea6cba702dd">
-            <HintPath>../pythonnet/pythonnet/runtime/Python.Runtime.dll</HintPath>
-            <SpecificVersion>True</SpecificVersion>
-        </Reference>
+        <ProjectReference Include="../pythonnet/src/runtime/Python.Runtime.csproj"/>
     </ItemGroup>
 </Project>
