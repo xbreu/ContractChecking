@@ -10,7 +10,7 @@
         "vscode": {
             "settings": {
                 "dafny.automaticVerification": "onsave",
-                "dafny.cliPath": "/dafny-custom/Binaries/Dafny.dll",
+                "dafny.cliPath": "/plugin/Dafny/Binaries/Dafny.dll",
                 "dafny.languageServerLaunchArgs": [
                     "--plugin:/plugin/bin/Debug/net6.0/Plugin.dll"
                 ],

@@ -1,25 +1,18 @@
 # Contract Repair for Dafny
 
-## Dependencies
+## Setup
 
-To compile the plugin, run `make` on the Plugin folder, you should have the following structure:  
-├ Plugin repository folder  
-├ Python.NET repository folder (from [pythonnet/pythonnet](https://github.com/pythonnet/pythonnet))  
-└ dafny-custom repository folder (from [xbreu/dafny](https://github.com/xbreu/dafny))  
+This repository contains a Docker container application. All the commands needed should be provided in the [Makefile](./Makefile).
 
-You can get that by running `make setup`, the other repositories will be cloned in the right place.
+After cloning the repository you can just run `make init`. This will do the following in the local folder:
+- Clone the used Dafny and Python.NET repositories
+- Download and extract the Daikon tool application
+- Build a Docker image and run it
 
-You also need the following tools:
-- .NET 6.0
-- Java Development Kit
-- Pythonnet
+After this, if you want to run it again, without building it again. You can just use the command `make container`.
 
-## Absolute Path Configurations
+## Development
 
-Change the absolute paths in the following lines to your own:
-- [Line 19 and 21 of PluginAddComment.cs](PluginAddComment.cs#L19)
-- [Line 253 of FixGenerator.cs](Fixes/FixGeneration.cs#L253) with the Daikon path
+To develop the project you may use the VSCode text editor, paired with its Dev Containers extension. If you do that, you can connect to the running container.
 
-After compiling the code, a `Plugin.dll` file should appear. Add it as a plugin by adding the following to `Dafny:Language Server Launch Args` in VSCode:
-```--plugin:/absolute/path/to/Plugin.dll```
-<!-- --plugin:/home/me/document/prodei/plugin/Plugin.dll -->
+By using `Ctrl + Shift + P`, you can type `Dev Containers: Attach to Running Container...` and select the one named `plugin`.

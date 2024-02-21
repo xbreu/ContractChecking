@@ -8,7 +8,7 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <ProjectReference Include="../dafny-custom/Source/DafnyLanguageServer/DafnyLanguageServer.csproj"/>
-        <ProjectReference Include="../pythonnet/src/runtime/Python.Runtime.csproj"/>
+        <ProjectReference Include="../Dafny/Source/DafnyLanguageServer/DafnyLanguageServer.csproj"/>
+        <ProjectReference Include="../PythonNet/src/runtime/Python.Runtime.csproj"/>
     </ItemGroup>
 </Project>
