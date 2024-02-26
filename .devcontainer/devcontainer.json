@@ -12,7 +12,7 @@
                 "dafny.automaticVerification": "onsave",
                 "dafny.cliPath": "/plugin/Dafny/Binaries/Dafny.dll",
                 "dafny.languageServerLaunchArgs": [
-                    "--plugin:/plugin/bin/Debug/net6.0/Plugin.dll"
+                    "--plugin:/plugin/Source/bin/Debug/net6.0/Plugin.dll"
                 ],
                 "dafny.version": "custom",
                 "terminal.integrated.defaultProfile.linux": "bash"
