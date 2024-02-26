@@ -14,6 +14,7 @@ namespace ContractFixer {
     public class ContractFixerCodeActionProvider : DafnyCodeActionProvider {
         public override IEnumerable<DafnyCodeAction> GetDafnyCodeActions(IDafnyCodeActionInput input, Range selection)
         {
+            Console.WriteLine("Custom Plugin Initiated");
             Debug.Assert(input.Program != null, "input.Program != null");
             ProcessStartInfo startInfo = new() {
                   FileName = "/plugin/Dafny/Scripts/dafny",
@@ -23,12 +24,16 @@ namespace ContractFixer {
                   RedirectStandardOutput = true,
                   RedirectStandardError = true
             };
+            Console.WriteLine("Compiling Program to Python");
             var proc = Process.Start(startInfo);
             ArgumentNullException.ThrowIfNull(proc);
             var _ = proc.StandardOutput.ReadToEnd();
+            Console.WriteLine("Starting Contract Repair");
             var checker = new ContractChecker("test.dfy");
             var output = checker.CheckProgram(input.Program);
+            Console.WriteLine("Waiting for Results");
             output.Wait();
+            Console.WriteLine("Creating Code Actions");
             var edits = new List<InstantDafnyCodeAction>
             {
                 new ($"{output}", new[]
