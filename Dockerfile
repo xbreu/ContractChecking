@@ -24,6 +24,14 @@ RUN apt-get update && \
 # ----------------------------------------------------------------------------
 
 # Compilation
-RUN dotnet build ./Source/Plugin.csproj && \
+RUN dotnet build ./Source/Plugin.csproj --no-incremental && \
     ln -s bin/Debug/net6.0/Plugin.dll . && \
     make exe -C Dafny
+
+
+# ----------------------------------------------------------------------------
+# Run
+# ----------------------------------------------------------------------------
+
+# Just keep running
+CMD tail -f /dev/null
