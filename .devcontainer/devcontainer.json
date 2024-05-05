@@ -2,7 +2,7 @@
     "name": "Contract Repair for Dafny",
     "build": {
         "context": "..",
-        "dockerfile": "../Dockerfile"
+        "dockerfile": "./Dockerfile"
     },
     "workspaceFolder": "/plugin",
     // Set *default* container specific settings.json values on container create.

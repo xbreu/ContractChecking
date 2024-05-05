@@ -1,21 +1,3 @@
-init: setup image container
-
-# ----------------------------------------------------------------------------
-# Docker commands
-# ----------------------------------------------------------------------------
-image:
-	docker build --tag 'plugin' .
-
-container:
-	docker run -d plugin tail -f /dev/null
-
-# Only run `make clean` if you have no other docker containers running
-clean:
-	docker ps -aq | xargs docker stop | xargs docker rm
-	docker system prune -a -f
-	rm -Rf .github .idea .mono bin obj
-	docker system prune -a -f
-
 # ----------------------------------------------------------------------------
 # Necessary dependencies
 # ----------------------------------------------------------------------------
