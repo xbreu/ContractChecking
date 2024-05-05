@@ -1,9 +1,10 @@
 using Microsoft.Dafny;
 
-namespace DafnyDriver.ContractChecking.Fixes;
+namespace DafnyRepair.Fixes.Configuration;
 
-public record FixGoal(Method Outer, Method FaultyRoutine, ContractType BrokenContract) {
-  public Method OuterRoutine = Outer;
-  public Method FaultyRoutine = FaultyRoutine;
-  public ContractType BrokenContract = BrokenContract;
+public record FixGoal(Method Outer, Method FaultyRoutine, ContractType BrokenContract)
+{
+    public readonly ContractType BrokenContract = BrokenContract;
+    public readonly Method FaultyRoutine = FaultyRoutine;
+    public Method OuterRoutine = Outer;
 }

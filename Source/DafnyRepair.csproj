@@ -1,0 +1,30 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <TargetFramework>net6.0</TargetFramework>
+        <RootNamespace>DafnyRepair</RootNamespace>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="../Dafny/Source/DafnyLanguageServer/DafnyLanguageServer.csproj"/>
+        <ProjectReference Include="../PythonNet/src/runtime/Python.Runtime.csproj"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="OmniSharp.Extensions.LanguageServer" Version="0.19.9"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <Reference Include="Boogie.BaseTypes">
+            <HintPath>..\Dafny\Binaries\Boogie.BaseTypes.dll</HintPath>
+        </Reference>
+        <Reference Include="Boogie.Core">
+            <HintPath>..\Dafny\Binaries\Boogie.Core.dll</HintPath>
+        </Reference>
+        <Reference Include="DafnyCore">
+            <HintPath>..\Dafny\Binaries\DafnyCore.dll</HintPath>
+        </Reference>
+    </ItemGroup>
+</Project>

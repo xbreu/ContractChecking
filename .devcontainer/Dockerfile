@@ -30,8 +30,8 @@ RUN apt-get update && \
 # ----------------------------------------------------------------------------
 
 # Compilation
-RUN dotnet build ./Source/Plugin.csproj --no-incremental && \
-    ln -s bin/Debug/net6.0/Plugin.dll . && \
+RUN dotnet build ./Source/DafnyRepair.csproj --no-incremental && \
+    ln -s bin/Debug/net6.0/DafnyRepair.dll . && \
     make exe -C Dafny
 
 

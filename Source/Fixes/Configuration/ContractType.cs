@@ -1,6 +1,7 @@
-namespace DafnyDriver.ContractChecking.Fixes; 
+namespace DafnyRepair.Fixes.Configuration;
 
-public enum ContractType {
-  PRE_CONDITION,
-  POST_CONDITION
+public enum ContractType
+{
+    PRE_CONDITION,
+    POST_CONDITION
 }

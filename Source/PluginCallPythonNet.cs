@@ -1,12 +1,11 @@
-﻿using Microsoft.Dafny;
-using Microsoft.Dafny.ContractChecking;
+﻿using System.Diagnostics;
+using Microsoft.Dafny;
+using Microsoft.Dafny.LanguageServer.Language;
 using Microsoft.Dafny.LanguageServer.Plugins;
 using Python.Runtime;
-using System.Diagnostics;
-using Microsoft.Dafny.LanguageServer.Language;
 using Range = OmniSharp.Extensions.LanguageServer.Protocol.Models.Range;
 
-namespace PluginCallPythonNet;
+namespace DafnyRepair;
 
 public class TestConfiguration : PluginConfiguration
 {
@@ -20,30 +19,27 @@ public class AddCommentDafnyCodeActionProvider : DafnyCodeActionProvider
 {
     public override IEnumerable<DafnyCodeAction> GetDafnyCodeActions(IDafnyCodeActionInput input, Range selection)
     {
-        var firstTokenRange = input.Program?.GetFirstTopLevelToken().GetLspRange();
+        var firstTokenRange = input.Program?.GetFirstTopLevelToken()?.GetLspRange();
         if (firstTokenRange != null && firstTokenRange.Start.Line == selection.Start.Line)
-        {
-            return new DafnyCodeAction[] {
+            return new DafnyCodeAction[]
+            {
                 new CustomDafnyCodeAction(input, firstTokenRange)
             };
-        }
-        else
-        {
-            return new DafnyCodeAction[] { };
-        }
+        return new DafnyCodeAction[] { };
     }
 }
 
 public class CustomDafnyCodeAction : DafnyCodeAction
 {
-    public Range WhereToInsert;
     private readonly IDafnyCodeActionInput input;
+    public Range WhereToInsert;
 
     public CustomDafnyCodeAction(IDafnyCodeActionInput input, Range whereToInsert) : base("Insert comment")
     {
-        this.WhereToInsert = whereToInsert;
+        WhereToInsert = whereToInsert;
         this.input = input;
     }
+
     public override IEnumerable<DafnyCodeActionEdit> GetEdits()
     {
         string x;
@@ -60,11 +56,13 @@ public class CustomDafnyCodeAction : DafnyCodeAction
                 x = $"a = {a}";
             }
         }
+
         PythonEngine.Shutdown();
 
-        string value = "Custom Plugin Initiated\n";
+        var value = "Custom Plugin Initiated\n";
         Debug.Assert(input.Program != null, "input.Program != null");
-        ProcessStartInfo startInfo = new() {
+        ProcessStartInfo startInfo = new()
+        {
             FileName = "/plugin/Dafny/Scripts/dafny",
             Arguments = "/compile:2 /compileTarget:py /plugin/test.dfy",
             CreateNoWindow = true,
@@ -84,8 +82,10 @@ public class CustomDafnyCodeAction : DafnyCodeAction
         value += log;*/
         value += "Creating Code Actions\n";
 
-        return new[] {
-            new DafnyCodeActionEdit(new DafnyRange(new DafnyPosition(0, 0), new DafnyPosition(0, 1)), $"/*A comment {x} \n{value}\n*/")
+        return new[]
+        {
+            new DafnyCodeActionEdit(new DafnyRange(new DafnyPosition(0, 0), new DafnyPosition(0, 1)),
+                $"/*A comment {x} \n{value}\n*/")
         };
     }
 }
