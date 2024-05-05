@@ -89,7 +89,7 @@ public class ContractChecker {
     return (Function)Find(FixConfiguration.GetProgram().DefaultModule, l);
   }
 
-  public async Task CheckProgram(Program program) {
+  public async Task<string> CheckProgram(Program program) {
     Stopwatch total;
     total = Stopwatch.StartNew();
 
@@ -106,10 +106,14 @@ public class ContractChecker {
 
     sw = Stopwatch.StartNew();
     var trace = TestMethod(name, arguments);
-    await using (var writer = new StreamWriter("../test/.trace.py")) {
+    var log = "Writing\n";
+    log += trace.ToDaikonInput();
+    log += "\n";
+    await using (var writer = new StreamWriter("/plugin/trace.py")) {
       // TODO: write it in a better way
       await writer.WriteAsync(trace.ToDaikonInput());
     }
+    log += "Written\n";
     Console.WriteLine($"{sw.ElapsedMilliseconds,7:D} ms to run {20} tests in Python");
     sw.Stop();
 
@@ -132,7 +136,10 @@ public class ContractChecker {
     Console.WriteLine($"\t{sw.ElapsedMilliseconds,6:D} ms to generate strengthening fixes");
     sw.Stop();
 
+    PythonExecutor.Shutdown();
     Console.WriteLine($"{total.ElapsedMilliseconds,7:D} ms total runtime");
     total.Stop();
+
+    return log;
   }
 }

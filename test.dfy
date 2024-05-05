@@ -7,9 +7,6 @@ method Faulty(d : int, n : int)
  requires n > 0
  ensures r + q * n == d
 {
- if n == 0 {
-  return 1 / 0, 0;
- }
  r := d;
  var m := abs(n);
  q := 0;

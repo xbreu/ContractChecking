@@ -15,7 +15,10 @@ internal static class PythonExecutor {
     const string pythonDll = @"/usr/lib/python3.10/config-3.10-x86_64-linux-gnu/libpython3.10.so";
     Environment.SetEnvironmentVariable("PYTHONNET_PYDLL", pythonDll);
     PythonEngine.Initialize();
-    // PythonEngine.Initialize(Enumerable.Empty<string>(), true, false);
+  }
+
+  public static void Shutdown() {
+    PythonEngine.Shutdown();
   }
 
   public static void RunPythonCode(string pythonCode) {
@@ -38,7 +41,6 @@ internal static class PythonExecutor {
   public static IResult RunPythonCodeAndReturn(string moduleName,
     string className, string methodName, List<List<IResult>> args,
     bool isStatic, string objectName = "_") {
-    Console.Error.WriteLine("2");
     PyObject trace;
     Initialize();
     const string returnName = "__python_net_ret";
@@ -50,7 +52,7 @@ internal static class PythonExecutor {
         }
 
         var code = $"import sys\n" +
-                   $"sys.path.append('../test/test-py')\n" +
+                   $"sys.path.insert(0, '/plugin/test-py')\n" +
                    $"import test\n";
         if (DebugPrint) {
           Console.Write(code);
@@ -96,6 +98,7 @@ internal static class PythonExecutor {
     }
 
     return FromPyObject(trace);
+                    //"--plugin:/plugin/MinimalPlugin/bin/Debug/net6.0/MinimalPlugin.dll"
   }
 
   private static IResult FromPyObject(PyObject obj) {

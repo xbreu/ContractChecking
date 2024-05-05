@@ -24,11 +24,9 @@ public class TestCase {
     var moduleName = DaikonTrace.GetModuleName(method);
     var className = DaikonTrace.GetClassName(method);
     var methodName = method.Name;
-    Console.Error.WriteLine("1");
     var trace = PythonExecutor.RunPythonCodeAndReturn(
       moduleName, className, methodName,
       arguments, method.IsStatic);
-    Console.Error.WriteLine("3");
     return (SequenceResult)trace;
   }
 }

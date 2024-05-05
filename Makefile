@@ -14,6 +14,7 @@ clean:
 	docker ps -aq | xargs docker stop | xargs docker rm
 	docker system prune -a -f
 	rm -Rf .github .idea .mono bin obj
+	docker system prune -a -f
 
 # ----------------------------------------------------------------------------
 # Necessary dependencies
@@ -36,4 +37,9 @@ ifeq ($(wildcard ./Daikon/.*),)
 	tar -xvzf daikon-5.8.18.tar.gz
 	rm daikon-5.8.18.tar.gz
 	mv daikon-5.8.18 Daikon
+endif
+
+z3:
+ifeq ($(wildcard ./Z3/.*),)
+	git clone --depth 1 https://github.com/Z3Prover/z3 Z3
 endif
